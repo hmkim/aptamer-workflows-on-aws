@@ -1,0 +1,28 @@
+version: 0.2
+
+phases:
+  pre_build:
+    commands:
+      - |
+        set -Eeuo pipefail
+        : "${AWS_REGION:?Set AWS_REGION to the target AWS Region.}"
+        : "${REPOSITORY_URI:?Set REPOSITORY_URI to a private Amazon ECR repository URI.}"
+        : "${IMAGE_TAG:?Set IMAGE_TAG to an immutable image tag.}"
+        case "$REPOSITORY_URI" in
+          *.dkr.ecr.*.amazonaws.com/*|*.dkr.ecr.*.amazonaws.com.cn/*) ;;
+          *) echo "REPOSITORY_URI must identify a private Amazon ECR repository." >&2; exit 2 ;;
+        esac
+        aws ecr get-login-password --region "$AWS_REGION" \
+          | docker login --username AWS --password-stdin "${REPOSITORY_URI%/*}"
+  build:
+    commands:
+      - docker build --pull --tag "${REPOSITORY_URI}:${IMAGE_TAG}" .
+  post_build:
+    commands:
+      - docker push "${REPOSITORY_URI}:${IMAGE_TAG}"
+      - docker inspect --format='{{index .RepoDigests 0}}' "${REPOSITORY_URI}:${IMAGE_TAG}" > image-digest.txt
+      - cat image-digest.txt
+
+artifacts:
+  files:
+    - image-digest.txt

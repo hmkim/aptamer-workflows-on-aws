@@ -1,0 +1,12 @@
+name: base
+channels:
+  - conda-forge
+  - bioconda
+channel_priority: strict
+dependencies:
+  - python=3.12
+  - seqkit=2.10
+  - cutadapt=5
+  - viennarna=2.7
+  - awscli=2
+  - procps-ng

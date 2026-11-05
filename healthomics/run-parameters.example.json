@@ -1,0 +1,8 @@
+{
+  "samplesheet": "s3://<PRIVATE_BUCKET>/<INPUT_PREFIX>/samplesheet.tsv",
+  "input_dir": ".",
+  "container": "<ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com/<REPOSITORY>@sha256:<IMAGE_DIGEST>",
+  "outdir": "/mnt/workflow/pubdir",
+  "front_primer": "<FRONT_PRIMER_DNA>",
+  "back_primer": "<BACK_PRIMER_DNA>"
+}

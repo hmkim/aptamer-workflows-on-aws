@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/aptamer-workflow/nextflow_schema.json",
+  "title": "Aptamer workflow parameters",
+  "type": "object",
+  "properties": {
+    "reads": { "type": ["string", "null"], "description": "FASTQ glob for staged input." },
+    "samplesheet": { "type": "string", "default": "samplesheet.tsv", "description": "Tab-separated round and file columns." },
+    "input_dir": { "type": ["string", "null"], "description": "Local directory, S3 prefix, or read-only Mountpoint directory." },
+    "input_mode": { "type": "string", "enum": ["stage", "mount"], "default": "stage" },
+    "outdir": { "type": "string", "default": "results" },
+    "front_primer": { "type": "string", "pattern": "^[ACGTNacgtn]+$" },
+    "back_primer": { "type": "string", "pattern": "^[ACGTNacgtn]+$" },
+    "cutadapt_error_rate": { "type": "number", "minimum": 0, "maximum": 1, "default": 0.12 },
+    "cutadapt_overlap": { "type": "integer", "minimum": 1, "default": 15 },
+    "min_length": { "type": "integer", "minimum": 1, "default": 10 },
+    "max_length": { "type": "integer", "minimum": 1, "default": 80 },
+    "top_n": { "type": "integer", "minimum": 1, "default": 100 },
+    "pseudocount_rpm": { "type": "number", "exclusiveMinimum": 0, "default": 0.01 },
+    "container": { "type": ["string", "null"], "description": "Tagged or digest-pinned private ECR image for remote profiles." },
+    "aws_region": { "type": ["string", "null"] },
+    "batch_queue": { "type": ["string", "null"] },
+    "batch_job_role": { "type": ["string", "null"] },
+    "work_uri": { "type": ["string", "null"], "pattern": "^(s3://.*)?$" },
+    "mount_path": { "type": "string", "default": "/mnt/s3-input" }
+  },
+  "required": ["front_primer", "back_primer"]
+}

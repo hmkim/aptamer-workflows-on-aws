@@ -1,0 +1,10 @@
+round	run_accession	library_name	file_name	url	md5
+0	DRR201861	RAPT1-0R	R0_DRR201861.fastq.gz	https://ftp.sra.ebi.ac.uk/vol1/fastq/DRR201/DRR201861/DRR201861.fastq.gz	9fe2f1d436f7db3644156bdf862e1649
+1	DRR201862	RAPT1-1R	R1_DRR201862.fastq.gz	https://ftp.sra.ebi.ac.uk/vol1/fastq/DRR201/DRR201862/DRR201862.fastq.gz	67d969c477d5b1032d15ff2f39959b4e
+2	DRR201863	RAPT1-2R	R2_DRR201863.fastq.gz	https://ftp.sra.ebi.ac.uk/vol1/fastq/DRR201/DRR201863/DRR201863.fastq.gz	7c06b45fa4105398b3ee43d5098645d6
+3	DRR201864	RAPT1-3R	R3_DRR201864.fastq.gz	https://ftp.sra.ebi.ac.uk/vol1/fastq/DRR201/DRR201864/DRR201864.fastq.gz	d475502f755e1c18d4e1f65f64de692e
+4	DRR201865	RAPT1-4R	R4_DRR201865.fastq.gz	https://ftp.sra.ebi.ac.uk/vol1/fastq/DRR201/DRR201865/DRR201865.fastq.gz	08e6de5e56e929a49d4be4e74312c3d7
+5	DRR201866	RAPT1-5R	R5_DRR201866.fastq.gz	https://ftp.sra.ebi.ac.uk/vol1/fastq/DRR201/DRR201866/DRR201866.fastq.gz	a60c6a4866832fab714d11cd79eb968a
+6	DRR201867	RAPT1-6R	R6_DRR201867.fastq.gz	https://ftp.sra.ebi.ac.uk/vol1/fastq/DRR201/DRR201867/DRR201867.fastq.gz	22932ea12aae85a1e84481eefcd746e9
+7	DRR201868	RAPT1-7R	R7_DRR201868.fastq.gz	https://ftp.sra.ebi.ac.uk/vol1/fastq/DRR201/DRR201868/DRR201868.fastq.gz	a322b3fbe71738f5858330eb40dedf59
+8	DRR201869	RAPT1-8R	R8_DRR201869.fastq.gz	https://ftp.sra.ebi.ac.uk/vol1/fastq/DRR201/DRR201869/DRR201869.fastq.gz	ca7abe683096dd3f6c8eaacde4c35da1

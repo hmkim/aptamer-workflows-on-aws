@@ -1,0 +1,26 @@
+{
+  "samplesheet": {
+    "description": "S3 object URI for a tab-separated samplesheet whose file column contains complete S3 object URIs.",
+    "optional": false
+  },
+  "input_dir": {
+    "description": "Use a dot when samplesheet rows contain complete S3 object URIs.",
+    "optional": false
+  },
+  "container": {
+    "description": "Tagged or digest-pinned private ECR image URI in the same AWS Region as the workflow.",
+    "optional": false
+  },
+  "outdir": {
+    "description": "HealthOmics export directory; use /mnt/workflow/pubdir.",
+    "optional": false
+  },
+  "front_primer": {
+    "description": "Front primer using only A, C, G, T, or N.",
+    "optional": false
+  },
+  "back_primer": {
+    "description": "Back primer using only A, C, G, T, or N.",
+    "optional": false
+  }
+}

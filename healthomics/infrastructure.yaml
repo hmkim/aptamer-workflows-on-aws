@@ -1,0 +1,193 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Private storage, container repository, encryption key, and least-privilege run role for an aptamer HealthOmics workflow.
+
+Parameters:
+  InputPrefix:
+    Type: String
+    Default: inputs
+    AllowedPattern: '[A-Za-z0-9][A-Za-z0-9._/-]*'
+  OutputPrefix:
+    Type: String
+    Default: outputs
+    AllowedPattern: '[A-Za-z0-9][A-Za-z0-9._/-]*'
+  ImageTag:
+    Type: String
+    AllowedPattern: '[A-Za-z0-9][A-Za-z0-9._-]{0,127}'
+
+Resources:
+  WorkflowKey:
+    Type: AWS::KMS::Key
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Description: Encrypts private aptamer workflow objects
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AccountAdministration
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:root'
+            Action: 'kms:*'
+            Resource: '*'
+
+  WorkflowBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - BucketKeyEnabled: true
+            ServerSideEncryptionByDefault:
+              SSEAlgorithm: aws:kms
+              KMSMasterKeyID: !GetAtt WorkflowKey.Arn
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: AbortIncompleteMultipartUploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 7
+
+  WorkflowBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref WorkflowBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource:
+              - !GetAtt WorkflowBucket.Arn
+              - !Sub '${WorkflowBucket.Arn}/*'
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+
+  WorkflowRepository:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      EncryptionConfiguration:
+        EncryptionType: AES256
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      ImageTagMutability: IMMUTABLE
+      EmptyOnDelete: false
+      RepositoryPolicyText:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: HealthOmicsImagePull
+            Effect: Allow
+            Principal:
+              Service: omics.amazonaws.com
+            Action:
+              - ecr:BatchCheckLayerAvailability
+              - ecr:BatchGetImage
+              - ecr:GetDownloadUrlForLayer
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+              ArnLike:
+                aws:SourceArn: !Sub 'arn:${AWS::Partition}:omics:${AWS::Region}:${AWS::AccountId}:workflow/*'
+
+  WorkflowRunRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: Least-privilege HealthOmics run role for one bucket and repository
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: omics.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+              ArnLike:
+                aws:SourceArn: !Sub 'arn:${AWS::Partition}:omics:${AWS::Region}:${AWS::AccountId}:run/*'
+      Policies:
+        - PolicyName: WorkflowDataAndImage
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: ListOnlyWorkflowPrefixes
+                Effect: Allow
+                Action:
+                  - s3:GetBucketLocation
+                  - s3:ListBucket
+                Resource: !GetAtt WorkflowBucket.Arn
+                Condition:
+                  StringLike:
+                    s3:prefix:
+                      - !Sub '${InputPrefix}/*'
+                      - !Sub '${OutputPrefix}/*'
+              - Sid: ReadInputs
+                Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub '${WorkflowBucket.Arn}/${InputPrefix}/*'
+              - Sid: ReadWriteOutputs
+                Effect: Allow
+                Action:
+                  - s3:AbortMultipartUpload
+                  - s3:GetObject
+                  - s3:ListMultipartUploadParts
+                  - s3:PutObject
+                Resource: !Sub '${WorkflowBucket.Arn}/${OutputPrefix}/*'
+              - Sid: UseWorkflowKey
+                Effect: Allow
+                Action:
+                  - kms:Decrypt
+                  - kms:DescribeKey
+                  - kms:Encrypt
+                  - kms:GenerateDataKey
+                Resource: !GetAtt WorkflowKey.Arn
+              - Sid: PullWorkflowImage
+                Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:BatchGetImage
+                  - ecr:GetDownloadUrlForLayer
+                Resource: !GetAtt WorkflowRepository.Arn
+              - Sid: GetEcrAuthorization
+                Effect: Allow
+                Action: ecr:GetAuthorizationToken
+                Resource: '*'
+              - Sid: WriteWorkflowLogs
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:DescribeLogStreams
+                  - logs:PutLogEvents
+                Resource: !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/omics/WorkflowLog:*'
+
+Outputs:
+  BucketName:
+    Value: !Ref WorkflowBucket
+  RepositoryUri:
+    Value: !GetAtt WorkflowRepository.RepositoryUri
+  PipelineImage:
+    Value: !Sub '${WorkflowRepository.RepositoryUri}:${ImageTag}'
+  RunRoleArn:
+    Value: !GetAtt WorkflowRunRole.Arn
+  InputPrefix:
+    Value: !Ref InputPrefix
+  OutputPrefix:
+    Value: !Ref OutputPrefix

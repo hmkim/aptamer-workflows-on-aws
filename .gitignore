@@ -1,0 +1,36 @@
+# Local inputs and outputs
+inputs/
+results/
+work/
+.scratch/
+
+# Runtime state
+**/.state/
+**/runs/
+.nextflow*
+.nextflow/
+pipeline_info/
+
+# Build artifacts
+build/
+dist/
+*.zip
+*.log
+*.tmp
+
+# Python
+**/__pycache__/
+**/*.pyc
+.pytest_cache/
+
+# IDE and OS
+.DS_Store
+.idea/
+.vscode/
+
+# Credentials and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
