@@ -50,12 +50,15 @@ Read [the architecture guide](docs/architecture.md) and [the storage guide](docs
 
 ```text
 .
+├── batch/               AWS Batch infrastructure templates, submission scripts, and in-container job scripts
 ├── data/                Public D1 manifest and checksum-verifying downloader
 ├── ec2/                 Helper for a baseline run on an existing EC2 instance
 ├── healthomics/         Private HealthOmics workflow packaging and infrastructure
 ├── nextflow/            One DSL2 workflow with local, Batch, Mountpoint, and HealthOmics profiles
 ├── pipeline/            Bash and Python implementation of the scientific stages
-├── tests/               Deterministic enrichment unit tests
+├── tests/               Enrichment unit tests, pipeline and Batch script contract tests, and Markdown link checks
+├── Dockerfile           Pipeline container image with the tools pinned in environment.yml
+├── buildspec.yml        AWS CodeBuild steps that build the image and push it to private Amazon ECR
 ├── docs/architecture.md Execution models and data flow
 ├── docs/storage.md      S3, local storage, staging, and Mountpoint guidance
 └── docs/validation.md   Static, functional, and cross-run validation
@@ -67,7 +70,7 @@ Read [the architecture guide](docs/architecture.md) and [the storage guide](docs
 
 Use a Linux environment with:
 
-- Git, Bash, `curl`, `jq`, `md5sum`, and Python 3.12 for local preparation and tests.
+- Git, Bash 4 or later, `curl`, `jq`, `md5sum`, and Python 3.12 for local preparation and tests. The shell contract tests use Bash 4 features such as `mapfile`, so they fail under the Bash 3.2 that ships with macOS.
 - Docker for the containerized local workflow.
 - AWS CLI v2 for AWS operations.
 - Nextflow 24.10 or 25.x for Nextflow runs.
@@ -172,6 +175,20 @@ bash ec2/run_baseline.sh
 
 Use private subnets, no inbound security-group rules, encrypted storage, and AWS Systems Manager Session Manager instead of SSH when that service fits your operating model. Grant the instance role only the required S3 prefixes and ECR repository.
 
+## AWS Batch implementation in `batch/`
+
+The two AWS Batch patterns below show `submit-job` commands against resources that already exist. The `batch/` directory contains a deployable implementation of those patterns plus a Mountpoint pattern, a Mountpoint compatibility check, and an input loader. Nothing in it deploys or submits automatically.
+
+| Component | Files | Role |
+|---|---|---|
+| Infrastructure | `network.yaml`, `infrastructure.yaml` | AWS CloudFormation templates, which declare AWS resources as code. They create a private network, encrypted S3 buckets, a private ECR repository, an AWS CodeBuild image project, least-privilege IAM roles, and a Batch compute environment, job queue, and three job definitions. |
+| Operator scripts | `submit_*.sh`, `upload_manifest.sh`, `collect_results.sh`, `validate.sh`, `lib/common.sh` | Run from your workstation. They read stack outputs, submit jobs, record job IDs under the ignored `batch/runs/` directory, and collect results. |
+| Job scripts | `job_common.sh`, `run_copyin.sh`, `run_stage.sh`, `run_mountpoint.sh`, `mountpoint_compat.sh`, `load_data.sh` | Run inside the container. The image build copies them into `/opt/aptamer/batch/`, so jobs never download executable scripts at run time. |
+
+Every job definition runs `/opt/aptamer/batch/${JOB_SCRIPT}`. Each submit script chooses the script through a container override, which is a per-job value that replaces the job definition default. If you submit the copy-in, stage, and Mountpoint patterns with the same `RUN_ID`, `collect_results.sh` compares their `top_candidates.tsv` files and gathers queue time, run time, copy time, and local disk use in one directory.
+
+Follow [batch/README.md](batch/README.md) for deployment order, image build, and submission commands.
+
 ## AWS Batch pattern 1: copy in, run, copy out
 
 AWS Batch schedules container jobs and can add or remove compute capacity. The simplest migration keeps the Bash pipeline unchanged: copy input objects from S3 into task-local storage, run the pipeline, then upload the result.
@@ -209,6 +226,8 @@ aws batch submit-job \
 A **job dependency** keeps a job pending until an earlier job succeeds. An **array job** creates indexed child jobs from one submission. With an `N_TO_N` dependency, child index 4 in one array waits for child index 4 in the previous array. This maps naturally to one child per SELEX round.
 
 The following commands create the dependency graph. Each referenced job definition must implement the named stage, use `AWS_BATCH_JOB_ARRAY_INDEX` for S1 through S3, and exchange intermediates through a private run-specific S3 prefix.
+
+In `batch/run_stage.sh`, array index `n` selects round `R<n>`. Rounds must therefore be numbered contiguously from `R0`. If a round is missing, the S1 child with that index fails because it finds no input file.
 
 ```bash
 export AWS_REGION='<AWS_REGION>'
@@ -255,6 +274,18 @@ bash nextflow/run_batch.sh batch \
 
 See [nextflow/README.md](nextflow/README.md) and the [Nextflow AWS Batch executor documentation](https://docs.seqera.io/nextflow/aws#aws-batch).
 
+To run Nextflow on the queue created by `batch/infrastructure.yaml`, take values from that stack's outputs:
+
+| Variable | Stack output or value |
+|---|---|
+| `BATCH_QUEUE` | `JobQueueName` |
+| `BATCH_JOB_ROLE_ARN` | `PipelineJobRoleArn` |
+| `PIPELINE_IMAGE` | `RepositoryUri` plus the image tag or digest you built |
+| `INPUT_URI` | `s3://<DataBucketName>/<DataPrefix>/` |
+| `NXF_WORK` | A prefix under `s3://<WorkBucketName>/runs/` |
+
+The pipeline job role can write only below `runs/` in the work bucket, so a Nextflow work directory elsewhere fails with access denied. The stack does not create a role for the Nextflow head process. Give the head process its own role that can submit and inspect Batch jobs, read and write the work prefix, and write `OUTPUT_URI`.
+
 ## Nextflow with read-only Mountpoint input
 
 Mountpoint for Amazon S3 presents S3 objects through a Linux file path. It is **not a fully POSIX-compliant file system and may fail according to a tool's or workload's file-access pattern**. Use it read-only for compatible inputs. Keep temporary files and outputs on local POSIX storage, and **never use a Mountpoint path as the Nextflow work directory**.
@@ -278,7 +309,9 @@ bash nextflow/run_batch.sh batch_mountpoint \
   --back_primer "$BACK_PRIMER"
 ```
 
-The compute hosts must mount the private input bucket at `/mnt/s3-input` and expose that host path read-only to task containers. Mounted paths are passed as strings rather than Nextflow `path` inputs. Nextflow therefore cannot detect an object whose contents changed without changing its mounted path. Use versioned or immutable keys, or run without `-resume` after an input change.
+The compute hosts must mount the private input bucket at `MOUNT_PATH`, which defaults to `/mnt/s3-input`, and expose that host path read-only to task containers. The hosts created by `batch/infrastructure.yaml` use a different layout: they mount only the `<DataPrefix>/` part of the data bucket at `/mnt/s3-data`, so input objects appear directly below `/mnt/s3-data`. On that queue, set `MOUNT_PATH='/mnt/s3-data'` and `INPUT_URI='/mnt/s3-data'`.
+
+Mounted paths are passed as strings rather than Nextflow `path` inputs. Nextflow therefore cannot detect an object whose contents changed without changing its mounted path. Use versioned or immutable keys, or run without `-resume` after an input change.
 
 Read [the storage guide](docs/storage.md) and [Mountpoint file-system behavior](https://github.com/awslabs/mountpoint-s3/blob/main/doc/SEMANTICS.md).
 
@@ -300,7 +333,10 @@ bash -n pipeline/run_pipeline.sh pipeline/s1_qc.sh pipeline/s2_trim.sh pipeline/
 python3 -m json.tool nextflow/nextflow_schema.json >/dev/null
 python3 -m json.tool healthomics/parameter-template.json >/dev/null
 python3 -m json.tool healthomics/run-parameters.example.json >/dev/null
+bash batch/validate.sh
 ```
+
+`batch/validate.sh` makes no AWS calls. It checks Bash syntax and CloudFormation YAML in `batch/` and runs `cfn-lint` and ShellCheck when they are installed. It fails if a template has inbound network rules or public-address flags, or lacks the EC2 instance metadata hop limit, S3 Block Public Access, or read-only Mountpoint settings. It also fails on a fixed account ID or an internal URL anywhere in `batch/`.
 
 Then compare outputs from the same immutable inputs, image digest, primers, and parameters. Checksums provide byte-level comparison; parsed tables provide a more useful scientific comparison when harmless file ordering differs. See [the validation guide](docs/validation.md).
 
