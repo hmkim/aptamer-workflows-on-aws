@@ -1,3 +1,5 @@
+[English](validation.md) | [한국어](validation.ko.md)
+
 # Validation guide
 
 Validation answers two different questions:
@@ -36,6 +38,15 @@ nextflow config nextflow/nextflow.config -profile batch_mountpoint >/dev/null
 nextflow config nextflow/nextflow.config -profile healthomics >/dev/null
 ```
 
+Check the infrastructure templates and scripts. These make no AWS calls:
+
+```bash
+bash -n scripts/*.sh scripts/lib/common.sh healthomics/vpc/omics-vpc-configuration.sh
+bash batch/validate.sh
+```
+
+`batch/validate.sh` checks Bash syntax and CloudFormation YAML in `batch/` and runs `cfn-lint` and ShellCheck when they are installed. It fails if a template has inbound network rules or public-address flags, or lacks the EC2 instance metadata hop limit, S3 Block Public Access, or read-only Mountpoint settings. It also fails on a fixed account ID or an internal URL anywhere in `batch/`. The unit tests also check that every document has a Korean twin, a language switch line, and working relative links.
+
 If AWS CLI credentials are configured for the intended test account, ask CloudFormation to parse the HealthOmics template without creating resources:
 
 ```bash
@@ -64,7 +75,7 @@ test "$(find inputs/DRA009383 -maxdepth 1 -type f -name '*.part' | wc -l)" -eq 0
 
 ## 3. Baseline run
 
-Run the local Docker command in the root README first. Treat its output as the reference only after reviewing the parameters.
+Run the local Docker command in [the local run guide](getting-started/05-local.md) first. Treat its output as the reference only after reviewing the parameters.
 
 Check the required files:
 
@@ -167,6 +178,22 @@ For each run, retain only the evidence allowed by your data policy:
 - Failure reason with sensitive paths and identifiers removed before sharing
 
 Do not commit cloud account IDs, resource identifiers, private object keys, execution logs, or research results to a public repository.
+
+## Validated on
+
+This table records end-to-end runs of the [getting-started guides](getting-started/00-prerequisites.md) on a fresh set of stacks. A path without a row is not validated.
+
+> TODO(validation): wave 3 replaces the placeholder rows with the date, Region, script options, and result of each fresh run.
+
+| Path | Guide | Date | Region | Result |
+|---|---|---|---|---|
+| Batch, CPU only | [20-batch](getting-started/20-batch.md#cpu-only) | TODO(validation) | TODO(validation) | TODO(validation) |
+| Batch, CPU + GPU | [20-batch](getting-started/20-batch.md#cpu--gpu) | TODO(validation) | TODO(validation) | TODO(validation) |
+| Batch, GPU only | [20-batch](getting-started/20-batch.md#gpu-only) | TODO(validation) | TODO(validation) | TODO(validation) |
+| HealthOmics, `RESTRICTED` | [30-healthomics](getting-started/30-healthomics.md) | TODO(validation) | TODO(validation) | TODO(validation) |
+| HealthOmics, VPC mode | [30-healthomics](getting-started/30-healthomics.md#optional-vpc-networking-mode-not-yet-validated) | not yet validated | — | — |
+| Both at once (`setup-all.sh`) | [40-both](getting-started/40-both.md#both-at-once) | TODO(validation) | TODO(validation) | TODO(validation) |
+| Cleanup | [90-cleanup](getting-started/90-cleanup.md) | TODO(validation) | TODO(validation) | TODO(validation) |
 
 ## Acceptance checklist
 

@@ -1,8 +1,10 @@
+[English](README.md) | [한국어](README.ko.md)
+
 # raptgen
 
 [RaptGen](https://github.com/hmdlab/raptgen) (sequence VAE for SELEX data, MIT) and
 [RaptGen-UI](https://github.com/hmdlab/RaptGen-UI) on AWS. Technical reference for this folder;
-step-by-step guides live under `docs/raptgen/` and `docs/getting-started/`.
+step-by-step guides live under [`docs/raptgen/`](../docs/raptgen/README.md) and `docs/getting-started/`.
 
 | Folder | What |
 |---|---|

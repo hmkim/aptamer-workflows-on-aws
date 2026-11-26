@@ -1,6 +1,8 @@
+[English](README.md) | [한국어](README.ko.md)
+
 # RaptGen on AWS HealthOmics (next phase)
 
-Placeholder. Nothing here is implemented or validated yet.
+Placeholder. Nothing here is implemented or validated yet. Documentation placeholder: [RaptGen on HealthOmics](../../docs/raptgen/healthomics.md).
 
 Planned scope:
 

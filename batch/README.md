@@ -1,3 +1,5 @@
+[English](README.md) | [한국어](README.ko.md)
+
 # AWS Batch implementation
 
 This directory runs the aptamer workflow on AWS Batch with three execution patterns and a separate input loader. Nothing deploys or submits automatically.

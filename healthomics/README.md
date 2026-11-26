@@ -1,3 +1,5 @@
+[English](README.md) | [한국어](README.ko.md)
+
 # AWS HealthOmics orchestration
 
 This directory packages and launches the same workflow in `../nextflow/` as an AWS HealthOmics private workflow. HealthOmics is an AWS managed service for running bioinformatics workflows.

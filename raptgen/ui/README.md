@@ -1,4 +1,8 @@
+[English](README.md) | [한국어](README.ko.md)
+
 # RaptGen-UI on a private EC2 host
+
+Step-by-step guide: [RaptGen-UI on a private EC2 host](../../docs/raptgen/ui.md).
 
 RaptGen-UI (Next.js frontend, FastAPI backend, Celery worker, PostgreSQL, Redis, started by upstream
 `compose.yml`) runs on one private EC2 host. The host has no public IP, no inbound rule and no SSH key.

@@ -1,3 +1,5 @@
+[English](storage.md) | [한국어](storage.ko.md)
+
 # Storage and cleanup guide
 
 The workflow uses three kinds of storage: Amazon S3 for durable objects, local POSIX storage for active file operations, and service-managed task storage in AWS HealthOmics.
@@ -114,6 +116,8 @@ Use S3 versioning plus immutable object keys, include a content identifier in th
 - Do not record confidential object keys or results in public logs.
 
 ## Cleanup
+
+This section covers one run at a time. To delete whole stacks and retained buckets, see [the cleanup guide](getting-started/90-cleanup.md).
 
 Cleanup commands are intentionally split into inspection, dry run, and execution. Replace every placeholder, confirm the AWS account and Region, preserve required results, and obtain explicit operator approval before an execution step.
 

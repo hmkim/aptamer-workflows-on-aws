@@ -1,3 +1,5 @@
+[English](README.md) | [한국어](README.ko.md)
+
 # HealthOmics VPC networking (not yet validated)
 
 > **Not yet validated.** Everything in this directory follows the AWS HealthOmics developer guide but has not been run end to end in this repository. The default and validated path is `RESTRICTED` networking in [`../README.md`](../README.md).

@@ -1,3 +1,5 @@
+[English](DATA_NOTICE.md) | [한국어](DATA_NOTICE.ko.md)
+
 # Data notice
 
 This repository does not contain sequencing reads or derived research results.

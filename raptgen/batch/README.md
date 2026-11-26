@@ -1,4 +1,8 @@
+[English](README.md) | [한국어](README.ko.md)
+
 # RaptGen on AWS Batch
+
+Step-by-step guide: [RaptGen on AWS Batch](../../docs/raptgen/batch.md). Measured speeds: [benchmark](../../docs/raptgen/benchmark.md).
 
 `jobs.yaml` creates up to four job definitions, each only if its image parameter is set:
 `raptgen-train-cpu`, `raptgen-train-gpu`, `raptgen-bench-cpu`, `raptgen-bench-gpu`

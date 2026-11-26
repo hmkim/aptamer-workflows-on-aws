@@ -1,3 +1,5 @@
+[English](CONTRIBUTING.md) | [한국어](CONTRIBUTING.ko.md)
+
 # Contributing
 
 Contributions should keep this repository useful as a public, independent educational project. It is not an official AWS sample or template.
@@ -88,7 +90,7 @@ Keep resources private by default. Use least-privilege IAM roles, private S3 buc
 
 ## Documentation and links
 
-Use complete commands with explicit `<PLACEHOLDER_NAMES>`. Do not use omitted arguments or three-dot abbreviations. Test relative links and verify external links before submitting.
+Use complete commands with explicit `<PLACEHOLDER_NAMES>`. Do not use omitted arguments or three-dot abbreviations. Test relative links and verify external links before submitting. When you change an English document `X.md`, update its Korean twin `X.ko.md` with the same headings, commands, and links.
 
 ## Pull request checklist
 

@@ -1,6 +1,8 @@
+[English](README.md) | [한국어](README.ko.md)
+
 # RaptGen-UI web access (CloudFront + Cognito, two roles)
 
-Optional. Without it, use the private SSM port forward in [`../ui`](../ui/README.md).
+Optional. Without it, use the private SSM port forward in [`../ui`](../ui/README.md). Step-by-step guide: [Web access](../../docs/raptgen/ui-web.md).
 
 ```
 Browser -HTTPS-> CloudFront -> Lambda@Edge (Cognito login + role check, fail-closed)

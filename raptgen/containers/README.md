@@ -1,4 +1,8 @@
+[English](README.md) | [한국어](README.ko.md)
+
 # RaptGen container images
+
+How to build, push and use them: [RaptGen on AWS Batch](../../docs/raptgen/batch.md).
 
 | | `cpu/` | `gpu/` |
 |---|---|---|

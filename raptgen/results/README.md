@@ -1,4 +1,8 @@
+[English](README.md) | [한국어](README.ko.md)
+
 # Results
+
+The numbers are explained in the [CPU vs GPU benchmark](../../docs/raptgen/benchmark.md) and the [RaptGen-UI guide](../../docs/raptgen/ui.md).
 
 Public sample data only (RaptGen paper dataset A `A_4R.fastq`, 80,864 reads; RaptGen-UI bundled RAPT1).
 No job ids, account ids or image digests are recorded.

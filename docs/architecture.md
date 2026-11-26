@@ -1,3 +1,5 @@
+[English](architecture.md) | [한국어](architecture.ko.md)
+
 # Architecture guide
 
 This guide separates the scientific pipeline from the service that runs it. The same five stages can run sequentially in Bash or as tasks coordinated by AWS Batch, Nextflow, or AWS HealthOmics.
@@ -90,6 +92,12 @@ Mountpoint is not fully POSIX-compliant. Tool compatibility depends on actual fi
 HealthOmics runs the packaged Nextflow definition as a private workflow. A **run role** is the IAM role that HealthOmics assumes to read inputs, write outputs, use encryption, and pull the image.
 
 The included helper requests restricted networking. In plain terms, workflow tasks do not receive general public-internet access. Package every executable and dependency in the same-Region private ECR image, and keep workflow inputs in authorized private S3 locations.
+
+An optional VPC networking mode routes run traffic through HealthOmics-managed network interfaces in the shared private subnets. It is **not yet validated in this repository**; see [the HealthOmics guide](getting-started/30-healthomics.md#optional-vpc-networking-mode-not-yet-validated).
+
+## Pattern G: RaptGen on AWS Batch, CPU or GPU
+
+RaptGen is a separate model-training workload. Its jobs use their own job definitions (`raptgen/batch/jobs.yaml`) and images, and run on the CPU queue, the GPU queue, or both, from the same Batch stack. GPU compute environments use the ECS GPU-optimized Amazon Linux 2023 image and the same private subnets and security group as CPU. See [RaptGen on Batch](raptgen/batch.md).
 
 ## Trust boundaries
 
