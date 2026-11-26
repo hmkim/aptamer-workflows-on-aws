@@ -41,7 +41,7 @@ aws sts get-caller-identity --query Arn --output text
 
 역할 또는 사용자 ARN이 보여야 합니다. 이 값을 이슈나 커밋에 붙여 넣지 마세요.
 
-설치 스크립트를 실행하는 자격 증명에는 `CAPABILITY_NAMED_IAM`으로 CloudFormation을 쓸 권한(템플릿이 IAM 역할을 만듭니다)과 VPC, EC2, S3, KMS, ECR, AWS Batch, CodeBuild, CloudWatch Logs, HealthOmics 리소스를 만들 권한이 필요합니다. HealthOmics VPC 모드에는 `omics.amazonaws.com`에 대한 `iam:CreateServiceLinkedRole`도 필요합니다.
+설치 스크립트를 실행하는 자격 증명에는 `CAPABILITY_NAMED_IAM`으로 CloudFormation을 쓸 권한(템플릿이 IAM 역할을 만듭니다)과 VPC, EC2, S3, KMS, ECR, AWS Batch, CodeBuild, CloudWatch Logs, HealthOmics 리소스를 만들 권한이 필요합니다. HealthOmics VPC 모드(아직 검증되지 않음)에는 `omics.amazonaws.com`에 대한 `iam:CreateServiceLinkedRole`도 필요합니다.
 
 ## 리전
 
@@ -54,7 +54,7 @@ aws ec2 describe-availability-zones --query 'AvailabilityZones[].ZoneName' --out
 
 가용 영역 이름이 두 개 이상 보여야 합니다. **가용 영역(Availability Zone, AZ)**은 리전 안에 있는 하나 이상의 분리된 데이터 센터입니다.
 
-AWS HealthOmics를 쓸 계획이라면 [HealthOmics 엔드포인트 목록](https://docs.aws.amazon.com/general/latest/gr/healthomics-quotas.html)에서 그 리전이 HealthOmics를 제공하는지 확인하세요. HealthOmics VPC 모드를 쓸 계획이라면 그 리전에서 HealthOmics가 지원하는 AZ도 확인해 두세요([지원 AZ](https://docs.aws.amazon.com/omics/latest/dev/workflows-vpc-internet.html)).
+AWS HealthOmics를 쓸 계획이라면 [HealthOmics 엔드포인트 목록](https://docs.aws.amazon.com/general/latest/gr/healthomics-quotas.html)에서 그 리전이 HealthOmics를 제공하는지 확인하세요. HealthOmics VPC 모드(아직 검증되지 않음)를 쓸 계획이라면 그 리전에서 HealthOmics가 지원하는 AZ도 확인해 두세요([지원 AZ](https://docs.aws.amazon.com/omics/latest/dev/workflows-vpc-internet.html)).
 
 ## 할당량
 

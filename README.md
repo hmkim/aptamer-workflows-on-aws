@@ -179,4 +179,4 @@ Moved to [docs/getting-started/90-cleanup.md](docs/getting-started/90-cleanup.md
 
 ## License
 
-Licensed under the Apache License 2.0. See [LICENSE](LICENSE). RaptGen (MIT) and RaptGen-UI are separate upstream projects under their own licenses; see the `NOTICE` files in `raptgen/containers/` and the upstream repositories.
+Licensed under the Apache License 2.0. See [LICENSE](LICENSE). RaptGen ([hmdlab/raptgen](https://github.com/hmdlab/raptgen)) and RaptGen-UI ([hmdlab/RaptGen-UI](https://github.com/hmdlab/RaptGen-UI)) are separate upstream projects, both under the MIT License. See [raptgen/containers/cpu/NOTICE](raptgen/containers/cpu/NOTICE) (RaptGen, also in `gpu/`) and [raptgen/ui/NOTICE](raptgen/ui/NOTICE) (RaptGen-UI) for the pinned commits, copyright lines and patches.

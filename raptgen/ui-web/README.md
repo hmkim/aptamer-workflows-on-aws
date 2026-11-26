@@ -20,6 +20,10 @@ Browser -HTTPS-> CloudFront -> Lambda@Edge (Cognito login + role check, fail-clo
   `scripts/verify-gate.sh` passes. Self sign-up is off; users are created by an admin.
 - The CloudFront to EC2 hop is HTTP inside the VPC (VPC origin). The browser side is HTTPS.
 - Use public or non-sensitive sequence data only.
+- **Residual risk: unpinned upstream dependencies.** RaptGen-UI at the pinned commit builds with npm and conda/pip packages that are not hash-locked (Next.js 13.1 and others), so each build may pull different versions, including ones with known issues. The gate blocks `/_next/image` and requires a login, but signed-in users still reach the rest of that code. Rebuild and review the images regularly, and keep the user list small.
+- **Shared security group.** CloudFront uses one `CloudFront-VPCOrigins-Service-SG` per VPC for **every** VPC origin in that VPC. After this step, any other CloudFront distribution in your account with a VPC origin in the same VPC can also reach port 18042 and skip this Cognito gate. Put the UI host in a VPC used only for this UI (a separate `<prefix>-network`), or first check that no other distribution uses a VPC origin there: `aws cloudfront list-vpc-origins --query 'VpcOriginList.Items[].[Id,Name,OriginEndpointArn]' --output text` (each line shows the instance, ALB or NLB the origin points to; check its VPC).
+- **MFA.** `-c cognitoMfa=OPTIONAL|REQUIRED` (default `OPTIONAL`). For real users use `REQUIRED`: each user then sets up a TOTP app at the first sign-in. Cognito accepts `REQUIRED` only when the user pool is created, so choose it at the first deploy. The validation run used `OPTIONAL` because the automated role test (`scripts/e2e-roles.ts`) signs in with a password only.
+- `npm run deploy` asks you to approve IAM and security-group changes before CloudFormation runs (CDK `--require-approval` default). Review them. Only in automation, after you reviewed `npx cdk diff`, pass `npm run deploy -- --require-approval never ...`.
 - The UI must listen on the instance **private IP**, not on loopback, so CloudFront can reach it.
   Install the UI with `../ui/install.sh --bind-private-ip` (the compose patch reads `UI_BIND_ADDR`).
   Loopback-only installs (the default) are not reachable from CloudFront.
@@ -35,7 +39,7 @@ Browser -HTTPS-> CloudFront -> Lambda@Edge (Cognito login + role check, fail-clo
 | Rename / delete | yes | 403 |
 | No group | 403 | 403 |
 
-`/_next/image` is blocked for everyone (Next 13.1 image optimizer, unused). Every error in the
+`/_next/image` is blocked for everyone (Next 13.1 image optimizer, unused), checked on the normalised path. Every error in the
 edge function fails closed (503), the request is never forwarded.
 
 ## Deploy (order matters)
@@ -53,7 +57,7 @@ export UI_WEB_STACK=RaptGenUiWeb   # stack name (default); every script below re
 npm run deploy -- \
   -c originInstanceArn=<InstanceArn> \
   -c originPrivateDns=<PrivateDnsName> \
-  [-c originPort=18042] [-c cognitoDomainPrefix=<unique-prefix>]
+  [-c originPort=18042] [-c cognitoDomainPrefix=<unique-prefix>] [-c cognitoMfa=REQUIRED]
 
 # 2. prove anonymous access is denied. Must pass before step 3.
 scripts/verify-gate.sh

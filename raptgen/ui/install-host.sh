@@ -22,8 +22,12 @@ PORT=18042
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PATCH_DIR="${PATCH_DIR:-${here}/patches}"
-UI_BIND_ADDR="${UI_BIND_ADDR:-127.0.0.1}"
+UI_BIND_ADDR="${UI_BIND_ADDR-127.0.0.1}"   # unset -> loopback; set but empty is rejected below
 APT_HTTPS="${APT_HTTPS:-0}"
+# Never publish on every interface: the UI has no login of its own.
+case "${UI_BIND_ADDR}" in
+  ""|0.0.0.0|::|"[::]"|0) echo "UI_BIND_ADDR must be one specific address (loopback or the private IP), not '${UI_BIND_ADDR}'" >&2; exit 2 ;;
+esac
 [[ "${UI_BIND_ADDR}" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || { echo "UI_BIND_ADDR must be an IPv4 address" >&2; exit 2; }
 [[ "$(id -u)" -eq 0 ]] || { echo "run as root" >&2; exit 1; }
 

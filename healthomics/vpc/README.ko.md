@@ -25,6 +25,8 @@
 | `EndpointAnalytics` | `false` | `analytics-omics` (variant, annotation store) |
 | `EndpointTags` | `false` | `tags-omics` (태그) |
 
+보안 강화가 필요하면, 실행이 AWS 서비스만 쓸 때 run 보안 그룹의 TCP 443 egress(기본 `0.0.0.0/0`)를 VPC endpoint나 prefix list로 제한하세요.
+
 `scripts/setup-healthomics.sh --vpc --interface-endpoints [--endpoint-services <list>]`가 이 값을 정하고(기본 `workflows-omics`만), 먼저 각 서비스가 그 리전에 있는지 확인합니다. 모든 리전에 다섯 개가 다 있지는 않습니다. 확인 방법:
 
 ```bash

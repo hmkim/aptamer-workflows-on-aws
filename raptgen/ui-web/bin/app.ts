@@ -53,6 +53,11 @@ if (!/^[a-z0-9][a-z0-9-]{2,62}$/.test(cognitoDomainPrefix) || /aws|amazon|cognit
   throw new Error('cognitoDomainPrefix: lowercase letters, digits, hyphens; must not contain aws, amazon or cognito');
 }
 
+// Cognito MFA (TOTP): -c cognitoMfa=REQUIRED|OPTIONAL, default OPTIONAL. Use REQUIRED for real users;
+// Cognito accepts REQUIRED only when the user pool is created. See README.md.
+const cognitoMfa = String(app.node.tryGetContext('cognitoMfa') ?? 'OPTIONAL').toUpperCase();
+if (cognitoMfa !== 'OPTIONAL' && cognitoMfa !== 'REQUIRED') throw new Error('cognitoMfa must be OPTIONAL or REQUIRED');
+
 new RaptGenUiWebStack(app, stackName, {
   // Lambda@Edge must live in us-east-1.
   env: { account, region: UI_WEB_REGION },
@@ -63,4 +68,5 @@ new RaptGenUiWebStack(app, stackName, {
   cognitoDomainPrefix,
   secretId,
   namePrefix: namePrefix(stackName),
+  cognitoMfa,
 });

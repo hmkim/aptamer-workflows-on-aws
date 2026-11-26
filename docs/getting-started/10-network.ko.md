@@ -2,7 +2,7 @@
 
 # 공유 private 네트워크
 
-AWS Batch, RaptGen-UI EC2 호스트, 선택 사항인 HealthOmics VPC 모드는 모두 private 네트워크 하나를 함께 씁니다. 이 네트워크는 `batch/network.yaml`이 `<prefix>-network` 스택으로 만듭니다. 이 단계를 직접 실행할 일은 많지 않습니다. 네트워크가 없으면 `scripts/setup-batch.sh`와 `scripts/setup-healthomics.sh --vpc`가 자동으로 만듭니다. 가용 영역을 직접 고르고 싶을 때만 직접 실행하세요.
+AWS Batch, RaptGen-UI EC2 호스트, 선택 사항인 HealthOmics VPC 모드(아직 검증되지 않음)는 모두 private 네트워크 하나를 함께 씁니다. 이 네트워크는 `batch/network.yaml`이 `<prefix>-network` 스택으로 만듭니다. 이 단계를 직접 실행할 일은 많지 않습니다. 네트워크가 없으면 `scripts/setup-batch.sh`와 `scripts/setup-healthomics.sh --vpc`가 자동으로 만듭니다. 가용 영역을 직접 고르고 싶을 때만 직접 실행하세요.
 
 `--vpc` 없이 쓰는 HealthOmics(기본 `RESTRICTED` 모드)는 이 네트워크를 쓰지 않습니다.
 

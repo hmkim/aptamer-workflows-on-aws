@@ -8,7 +8,8 @@ RaptGen
            https://www.nature.com/articles/s43588-022-00249-6
 
 Modifications (Dockerfile):
-  /usr/share/doc/aptamer-raptgen/patches/ contains two audited patches.
+  /usr/share/doc/aptamer-raptgen/patches/ contains two audited patch files
+  with these three changes:
   - raptgen/data.py: np.int -> int (NumPy >= 1.24 removed the alias).
   - raptgen/data.py: pHMM sampling weights normalize in float64 and correct
     the final value to an exact unit sum for NumPy 2.5.

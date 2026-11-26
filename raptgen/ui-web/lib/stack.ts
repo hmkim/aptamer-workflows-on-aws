@@ -22,6 +22,7 @@ export interface RaptGenUiWebProps extends StackProps {
   cognitoDomainPrefix: string; // unique per Region; chosen in bin/app.ts
   secretId: string;            // edge config secret (must match the edge bundle); see lib/names.ts
   namePrefix: string;          // raptgen-ui-web for the default stack, else the stack name in lower case
+  cognitoMfa: 'OPTIONAL' | 'REQUIRED'; // TOTP; REQUIRED can only be chosen when the pool is created
 }
 
 /** VPC origin endpoint by ARN (the instance lives in another Region than this stack). */
@@ -59,7 +60,7 @@ export class RaptGenUiWebStack extends Stack {
       selfSignUpEnabled: false,
       signInAliases: { username: true },
       signInCaseSensitive: false,
-      mfa: cognito.Mfa.OPTIONAL,
+      mfa: props.cognitoMfa === 'REQUIRED' ? cognito.Mfa.REQUIRED : cognito.Mfa.OPTIONAL,
       mfaSecondFactor: { otp: true, sms: false },
       passwordPolicy: {
         minLength: 14, requireDigits: true, requireLowercase: true, requireUppercase: true, requireSymbols: true,

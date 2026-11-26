@@ -55,6 +55,8 @@ What you should see:
 
 Useful options (all optional): `--max-vcpus` and `--instance-types` for CPU (defaults 72 and `c7i,c6i`); `--gpu-max-vcpus` and `--gpu-instance-types` for GPU (defaults 8 and `g5.xlarge,g6.xlarge`). GPU instances use the ECS GPU-optimized Amazon Linux 2023 image (`ECS_AL2023_NVIDIA`), which includes the NVIDIA driver.
 
+**Hardened use:** the compute security group allows outbound TCP 443 to `0.0.0.0/0`, because image pulls and the D1 download go through the NAT gateway. To narrow it, add VPC endpoints (ECR, CloudWatch Logs, S3 gateway) and restrict the `ComputeSecurityGroup` egress in `batch/infrastructure.yaml` to them.
+
 ## Step 3: Check the stack
 
 ```bash

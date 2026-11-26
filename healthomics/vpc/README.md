@@ -25,6 +25,8 @@
 | `EndpointAnalytics` | `false` | `analytics-omics` (variant and annotation stores) |
 | `EndpointTags` | `false` | `tags-omics` (tagging) |
 
+For hardened use, restrict the run security group's TCP 443 egress (default `0.0.0.0/0`) to VPC endpoints or prefix lists when runs need only AWS services.
+
 `scripts/setup-healthomics.sh --vpc --interface-endpoints [--endpoint-services <list>]` sets these (default `workflows-omics` only) and first checks that each service is offered in the Region. Not every Region offers all five. Check with:
 
 ```bash

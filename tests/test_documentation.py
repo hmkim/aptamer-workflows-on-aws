@@ -161,10 +161,11 @@ class DocumentationTest(unittest.TestCase):
             text = path.read_text(encoding="utf-8")
             for term in terms:
                 if term in text:
-                    problems.append(f"{rel(path)}: forbidden term {term[:4]}...")
+                    # Report file and line only: never echo any part of a forbidden term.
+                    problems.append(f"{rel(path)}:{text.count(chr(10), 0, text.find(term)) + 1}: forbidden term")
             for rx in (real_id, account_id):
                 for match in rx.finditer(text):
-                    problems.append(f"{rel(path)}: {match.group(0)[:6]}...")
+                    problems.append(f"{rel(path)}:{text.count(chr(10), 0, match.start()) + 1}: identifier-like value")
         self.assertEqual(problems, [], "\n".join(problems))
 
 

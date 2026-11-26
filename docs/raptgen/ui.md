@@ -56,6 +56,8 @@ echo "$INSTANCE_ID"
 
 The host is Amazon Linux 2023, encrypted gp3 disk, IMDSv2 required, an SSM role, and egress on TCP 443 only (to `0.0.0.0/0` by default, because SSM, GitHub and the container registries need it; narrow it with the `HttpsEgressCidr` parameter if your network allows). In the EC2 console it shows no public IP. In **Systems Manager > Fleet Manager** it appears as a managed node after a minute or two. Wait for that before step 2. (The first-boot script may still be installing packages then; `install.sh` waits for it.)
 
+**Hardened use:** after the install, narrow the egress with `HttpsEgressCidr` (for example your proxy) and/or `S3PrefixListId` plus VPC interface endpoints for SSM and ECR. The install itself needs GitHub, the container registries and package mirrors.
+
 ## Step 2. Install RaptGen-UI
 
 ```bash
@@ -84,6 +86,8 @@ The upstream code at `13cad83` does not work on a cloud host as is. Three small 
 In the test run, the build took about 9 minutes. The images were about 5.4 GB each for backend and worker and 762 MB for the frontend.
 
 ## Step 3. Open the tunnel and the UI
+
+> **Not exercised in validation.** The 2026-11-26 validation could not run `connect.sh` (the SSM port forward) because the test workstation had no Session Manager plugin. It checked the UI on the host through SSM Run Command instead (step 4). The tunnel follows the standard `AWS-StartPortForwardingSessionToRemoteHost` document, but treat this step as not yet validated.
 
 ```bash
 raptgen/ui/connect.sh --instance-id "$INSTANCE_ID"

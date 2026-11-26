@@ -18,6 +18,10 @@
 - 사이트는 Cognito 로그인 뒤에서 인터넷에 접근할 수 있게 됩니다. `scripts/verify-gate.sh`가 통과한 뒤에만 사용자를 만드세요. 직접 가입은 꺼져 있고, 사용자는 관리자가 만듭니다.
 - CloudFront에서 EC2까지는 VPC 안의 HTTP입니다 (VPC origin). 브라우저 쪽은 HTTPS입니다.
 - 공개 데이터 또는 민감하지 않은 서열 데이터만 사용하세요.
+- **남은 위험: 고정되지 않은 upstream 의존성.** 고정한 commit의 RaptGen-UI는 hash로 고정되지 않은 npm, conda/pip 패키지(Next.js 13.1 등)로 빌드되므로, 빌드할 때마다 알려진 문제가 있는 버전을 포함해 다른 버전을 받을 수 있습니다. gate가 `/_next/image`를 막고 로그인을 요구하지만, 로그인한 사용자는 나머지 코드에 그대로 닿습니다. 이미지를 정기적으로 다시 빌드해 검토하고, 사용자 수를 작게 유지하세요.
+- **공유 보안 그룹.** CloudFront는 VPC마다 `CloudFront-VPCOrigins-Service-SG` 하나를 그 VPC의 **모든** VPC origin에 씁니다. 이 단계 뒤에는 같은 VPC에 VPC origin을 둔 계정의 다른 CloudFront distribution도 18042 포트에 닿을 수 있고 이 Cognito gate를 거치지 않습니다. UI 호스트는 이 UI만 쓰는 VPC(별도의 `<prefix>-network`)에 두거나, 먼저 그 VPC에 VPC origin을 쓰는 다른 distribution이 없는지 확인하세요: `aws cloudfront list-vpc-origins --query 'VpcOriginList.Items[].[Id,Name,OriginEndpointArn]' --output text` (각 줄은 origin이 가리키는 인스턴스, ALB, NLB를 보여 줍니다. 그 VPC를 확인하세요).
+- **MFA.** `-c cognitoMfa=OPTIONAL|REQUIRED` (기본값 `OPTIONAL`). 실제 사용자에게는 `REQUIRED`를 쓰세요. 그러면 각 사용자가 첫 로그인 때 TOTP 앱을 설정합니다. Cognito는 user pool을 만들 때만 `REQUIRED`를 받으므로 첫 배포에서 정하세요. 검증 실행은 자동 역할 테스트(`scripts/e2e-roles.ts`)가 비밀번호로만 로그인하므로 `OPTIONAL`을 썼습니다.
+- `npm run deploy`는 CloudFormation 실행 전에 IAM과 보안 그룹 변경 승인을 묻습니다 (CDK `--require-approval` 기본값). 내용을 확인하세요. 자동화에서만, `npx cdk diff`를 확인한 뒤 `npm run deploy -- --require-approval never ...`를 쓰세요.
 - UI는 loopback이 아니라 인스턴스 **private IP**에서 listen해야 CloudFront가 닿을 수 있습니다. `../ui/install.sh --bind-private-ip`로 설치하세요 (compose 패치가 `UI_BIND_ADDR`를 읽습니다). 기본값인 loopback 설치에는 CloudFront가 닿지 못합니다.
 
 ## 역할 (검증된 ID 토큰을 기준으로 edge에서 강제)
@@ -31,7 +35,7 @@
 | 이름 변경 / 삭제 | 가능 | 403 |
 | 그룹 없음 | 403 | 403 |
 
-`/_next/image`는 모두에게 막혀 있습니다 (Next 13.1 이미지 최적화, 사용하지 않음). edge 함수의 모든 오류는 fail-closed(503)로 처리되며 요청은 전달되지 않습니다.
+`/_next/image`는 모두에게 막혀 있습니다 (Next 13.1 이미지 최적화, 사용하지 않음, 정규화한 경로 기준). edge 함수의 모든 오류는 fail-closed(503)로 처리되며 요청은 전달되지 않습니다.
 
 ## 배포 (순서가 중요)
 
@@ -47,7 +51,7 @@ export UI_WEB_STACK=RaptGenUiWeb   # 스택 이름 (기본값). 아래 스크립
 npm run deploy -- \
   -c originInstanceArn=<InstanceArn> \
   -c originPrivateDns=<PrivateDnsName> \
-  [-c originPort=18042] [-c cognitoDomainPrefix=<unique-prefix>]
+  [-c originPort=18042] [-c cognitoDomainPrefix=<unique-prefix>] [-c cognitoMfa=REQUIRED]
 
 # 2. 익명 접근이 거부되는지 확인. 3단계 전에 반드시 통과해야 합니다.
 scripts/verify-gate.sh

@@ -10,6 +10,7 @@ RaptGen-UI(Next.js frontend, FastAPI backend, Celery worker, PostgreSQL, Redis. 
 |---|---|
 | `ec2.yaml` | 호스트: AL2023, 기본 `m7i.2xlarge`, 암호화된 gp3 200 GiB, IMDSv2 필수(hop limit 1), SSM role, TCP 443 outbound만 허용. `CAPABILITY_IAM`이 필요합니다. |
 | `install.sh` | `install-host.sh`와 패치를 SSM Run Command로 보내고 끝날 때까지 기다림 (첫 빌드 15~30분) |
+| `NOTICE` | RaptGen-UI 업스트림(commit, MIT 라이선스, 저작권 표시)과 패치 목록 |
 | `install-host.sh` | 호스트에서 실행: cloud-init 완료 대기, Docker Compose plugin(v2.40.3)과 Docker Buildx plugin(v0.39.1), sha256 확인, 고정된 commit의 RaptGen-UI, 패치, `docker compose up -d --build` |
 | `connect.sh` | `localhost:18042`로 가는 `aws ssm start-session` 포트 포워딩 |
 | `tests/e2e_api.py` | API end-to-end 테스트 (Viewer, VAE 학습, GMM, Bayesian optimization) |

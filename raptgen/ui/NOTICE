@@ -1,0 +1,23 @@
+RaptGen-UI notice
+
+This directory does not contain RaptGen-UI itself. install-host.sh clones it on the
+UI host and applies the patches listed below.
+
+RaptGen-UI
+  Source:  https://github.com/hmdlab/RaptGen-UI
+  Commit:  13cad83859dc9eac39383a00882c17c82a4cdb37
+  License: MIT License, Copyright (c) 2025 Ryota Nakano
+           (full text: LICENSE in the upstream repository at that commit)
+
+Patches in this directory (applied to the upstream files at install time;
+the patch files themselves are under the license of this repository):
+  patches/0001-frontend-bookworm-base.patch     frontend/dockerfile: node:20.2-slim -> node:20-bookworm-slim
+  patches/0002-relative-api-base.patch          frontend/services/api-client.ts: API base "/api" instead of
+                                                http://localhost:18042/api
+  patches/0003-publish-on-bind-address.patch    compose.yml: publish the UI port on ${UI_BIND_ADDR:-127.0.0.1}
+                                                instead of all interfaces
+  patches/optional/0001-https-only-apt.patch    backend/cpu.dockerfile, frontend/dockerfile: apt over HTTPS with
+                                                the host CA bundle (applied by default by install.sh; --apt-http skips it)
+
+RaptGen-UI's own dependencies (npm, conda and pip packages fetched during the
+image build) keep their own licenses.

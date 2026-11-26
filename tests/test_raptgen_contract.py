@@ -168,10 +168,12 @@ class SensitiveStringTest(unittest.TestCase):
             rel = str(path.relative_to(ROOT))
             for needle in self.FORBIDDEN:
                 if needle in text:
-                    hits.append(f"{rel}: {needle[:4]}...")
+                    # Report file and line only: never echo any part of a forbidden term.
+                    hits.append(f"{rel}:{text.count(chr(10), 0, text.find(needle)) + 1}: forbidden term")
             for rx in self.REGEXES:
-                if re.search(rx, text) and not rel.endswith("package-lock.json"):
-                    hits.append(f"{rel}: regex {rx[:20]}")
+                m = re.search(rx, text)
+                if m and not rel.endswith("package-lock.json"):
+                    hits.append(f"{rel}:{text.count(chr(10), 0, m.start()) + 1}: identifier-like value")
             for acct in re.findall(r"(?<![0-9a-f-])[0-9]{12}(?![0-9])(?=[:/\"'\s,)]|$)", text):
                 if re.search(r"(arn:|dkr\.ecr|account)", text) and acct not in self.ALLOWED_ACCOUNT and not rel.endswith("package-lock.json"):
                     if re.search(rf"(arn:[^\s]*:{acct}:|{acct}\.dkr)", text):
@@ -179,7 +181,7 @@ class SensitiveStringTest(unittest.TestCase):
         for p in IMAGES.glob("*"):
             for needle in self.FORBIDDEN:
                 if needle in p.name:
-                    hits.append(f"{p.name}: {needle[:4]}...")
+                    hits.append(f"image file name {sorted(IMAGES.glob('*')).index(p) + 1}: forbidden term")
         self.assertEqual(hits, [])
 
 

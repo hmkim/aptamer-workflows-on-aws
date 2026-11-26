@@ -108,8 +108,32 @@ export function idTokenFromCookies(req: CloudFrontRequest, clientId: string): st
   return undefined;
 }
 
+/**
+ * Canonical form of a path for prefix checks: percent-decoding repeated until stable (max 3 rounds),
+ * backslashes as slashes, repeated slashes collapsed, "/./" segments removed, lower case.
+ * Returns undefined for malformed encoding; callers treat that as blocked (fail closed).
+ */
+export function normalizePath(uri: string): string | undefined {
+  let p = uri;
+  for (let i = 0; i < 3; i++) {
+    let d: string;
+    try { d = decodeURIComponent(p); } catch { return undefined; }
+    if (d === p) break;
+    p = d;
+    if (i === 2 && /%[0-9a-f]{2}/i.test(p)) return undefined;
+  }
+  p = p.replace(/\\/g, '/').replace(/\/+/g, '/');
+  while (/\/\.(\/|$)/.test(p)) p = p.replace(/\/\.(\/|$)/, '/');
+  return p.toLowerCase();
+}
+
+export function isBlockedPath(uri: string): boolean {
+  const p = normalizePath(uri);
+  return p === undefined || BLOCKED_PREFIXES.some((b) => p.startsWith(b));
+}
+
 export function isAllowed(groups: string[], method: string, uri: string): boolean {
-  if (BLOCKED_PREFIXES.some((p) => uri.startsWith(p))) return false;
+  if (isBlockedPath(uri)) return false;
   if (groups.includes(FULL_GROUP)) return true;
   if (groups.includes(READONLY_GROUP)) {
     if (method === 'GET' || method === 'HEAD') return true;

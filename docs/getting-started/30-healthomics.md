@@ -142,6 +142,8 @@ Options: `--configuration-name <name>` (default `<prefix>-vpc`), `--interface-en
 
 You should see `HealthOmics VPC networking mode is NOT YET VALIDATED in this repository`, the stack `<prefix>-healthomics-vpc` reach `CREATE_COMPLETE`, and the configuration reach `ACTIVE`. The stack adds a run security group with HTTPS (TCP 443) egress only and no ingress. Check the configuration:
 
+**Hardened use:** the run security group allows TCP 443 to `0.0.0.0/0`. If your runs need only AWS services, restrict its egress in `healthomics/vpc/vpc.yaml` to VPC endpoints or prefix lists.
+
 ```bash
 healthomics/vpc/omics-vpc-configuration.sh status --region "$AWS_REGION" --name "$PREFIX-vpc"
 ```

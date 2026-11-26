@@ -406,10 +406,12 @@ class SensitiveStringTest(unittest.TestCase):
         for path in self.OWNED:
             text = path.read_text(encoding="utf-8")
             for literal in self.LITERALS:
-                if literal.lower() in text.lower():
-                    problems.append(f"{path.relative_to(ROOT)}: {literal!r}")
+                # Report file and line only: never echo any part of a forbidden term.
+                pos = text.lower().find(literal.lower())
+                if pos >= 0:
+                    problems.append(f"{path.relative_to(ROOT)}:{text.count(chr(10), 0, pos) + 1}: forbidden term")
             for match in self.REAL_ID.finditer(text):
-                problems.append(f"{path.relative_to(ROOT)}: {match.group(0)!r}")
+                problems.append(f"{path.relative_to(ROOT)}:{text.count(chr(10), 0, match.start()) + 1}: resource id")
         self.assertEqual(problems, [])
 
 

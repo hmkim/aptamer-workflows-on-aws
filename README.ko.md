@@ -179,4 +179,4 @@ RaptGen은 별도의 선택 모듈입니다. SELEX 데이터셋에 있는 서열
 
 ## 라이선스
 
-Apache License 2.0으로 배포합니다. [LICENSE](LICENSE)를 보세요. RaptGen(MIT)과 RaptGen-UI는 각자의 라이선스를 따르는 별도의 업스트림 프로젝트입니다. `raptgen/containers/`의 `NOTICE` 파일과 업스트림 리포지토리를 확인하세요.
+Apache License 2.0으로 배포합니다. [LICENSE](LICENSE)를 보세요. RaptGen([hmdlab/raptgen](https://github.com/hmdlab/raptgen))과 RaptGen-UI([hmdlab/RaptGen-UI](https://github.com/hmdlab/RaptGen-UI))는 별도의 업스트림 프로젝트이며 둘 다 MIT License입니다. 고정한 commit, 저작권 표시, 패치는 [raptgen/containers/cpu/NOTICE](raptgen/containers/cpu/NOTICE)(RaptGen, `gpu/`에도 있음)와 [raptgen/ui/NOTICE](raptgen/ui/NOTICE)(RaptGen-UI)를 보세요.

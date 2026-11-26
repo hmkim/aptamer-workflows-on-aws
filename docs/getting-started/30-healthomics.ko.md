@@ -142,6 +142,8 @@ scripts/setup-healthomics.sh --prefix "$PREFIX" --region "$AWS_REGION" --vpc
 
 `HealthOmics VPC networking mode is NOT YET VALIDATED in this repository`가 보이고, `<prefix>-healthomics-vpc` 스택이 `CREATE_COMPLETE`가 되고, configuration이 `ACTIVE`가 되어야 합니다. 이 스택은 HTTPS(TCP 443) egress만 있고 ingress는 없는 run security group을 추가합니다. configuration을 확인합니다.
 
+**보안 강화:** run 보안 그룹은 TCP 443을 `0.0.0.0/0`으로 허용합니다. 실행이 AWS 서비스만 쓴다면 `healthomics/vpc/vpc.yaml`에서 egress를 VPC endpoint나 prefix list로 제한하세요.
+
 ```bash
 healthomics/vpc/omics-vpc-configuration.sh status --region "$AWS_REGION" --name "$PREFIX-vpc"
 ```

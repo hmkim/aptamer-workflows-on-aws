@@ -11,6 +11,7 @@ This is an **optional** add-on to [RaptGen-UI on a private EC2 host](ui.md). It 
 > - Do not open the origin (step 3) before the gate is verified. Verify first, open second.
 > - The hop from CloudFront to the EC2 host is plain HTTP inside your VPC (CloudFront VPC origin). The browser side is HTTPS.
 > - Use public or non-sensitive sequence data only.
+> - **Residual risk: unpinned upstream dependencies.** RaptGen-UI at the pinned commit builds with npm and conda/pip packages that are not hash-locked (Next.js 13.1 and others), so each build may pull different versions, including ones with known issues. The gate blocks `/_next/image` and requires a login, but signed-in users still reach the rest of that code. Rebuild and review the images regularly, and keep the user list small.
 
 Technical reference: [`raptgen/ui-web/README.md`](../../raptgen/ui-web/README.md).
 
@@ -41,7 +42,7 @@ The role is enforced at the edge from the verified ID token.
 | Rename or delete | yes | 403 |
 | User in no group | 403 | 403 |
 
-The Next.js image optimizer path `/_next/image` is blocked for everyone (it is unused).
+The Next.js image optimizer path `/_next/image` is blocked for everyone (it is unused). The check runs on a normalised path (percent-decoding, repeated slashes collapsed, case-insensitive), so `//_next/image` or `/%5Fnext/image` are blocked too.
 
 ## Before you start
 
@@ -86,6 +87,10 @@ npm run deploy -- \
 
 `npm run deploy` first builds the edge bundle for the stack named in `UI_WEB_STACK` (default `RaptGenUiWeb`), then deploys that stack. The stack name sets the other names: for the default stack the secrets are under `/raptgen-ui-web/`, for any other name under `/<stack name in lower case>/` (for example `/my-ui-web/edge-auth`), and the Cognito user pool and app client take the same name. To run a second, independent gate in the same account, use a new `UI_WEB_STACK` value in every command of this page. You can also pass `-c stackName=<name>`; it must match `UI_WEB_STACK` when both are set.
 
+`npm run deploy` asks you to approve IAM and security-group changes before CloudFormation runs (CDK `--require-approval` default). Review them. Only in automation, after you reviewed `npx cdk diff`, pass `npm run deploy -- --require-approval never ...`.
+
+**MFA.** `-c cognitoMfa=OPTIONAL|REQUIRED` (default `OPTIONAL`). For real users use `REQUIRED`: each user then sets up a TOTP app at the first sign-in. Cognito accepts `REQUIRED` only when the user pool is created, so choose it at the first deploy. The validation run used `OPTIONAL` because the automated role test (`scripts/e2e-roles.ts`) signs in with a password only.
+
 `originPort` defaults to 18042. `cognitoDomainPrefix` must be unique in the Region and must not contain `aws`, `amazon` or `cognito`. If you leave it out, a stable value derived from your account (and from the stack name, for a non-default name) is used. The gate is always created in us-east-1, because Lambda@Edge and its configuration secret must live there. No account, instance or domain is hard-coded; they come from your AWS CLI configuration and the context values above.
 
 You should see the CloudFormation stack `$UI_WEB_STACK` reach `CREATE_COMPLETE` and outputs such as `SiteUrl`, `UserPoolId`, `CognitoDomain` and `UserSecretPrefix`. The first deployment takes about 10 minutes (CloudFront and Lambda@Edge).
@@ -101,6 +106,8 @@ It reads `UI_WEB_STACK` (default `RaptGenUiWeb`) and prints `gate stack: <name> 
 ### Step 3. Open the origin to CloudFront only
 
 The UI host has no inbound rule. This step adds one rule that lets only the CloudFront VPC origin service security group reach port 18042. Find that group in the VPC of the UI host (CloudFront creates it, named `CloudFront-VPCOrigins-Service-SG`):
+
+**Shared security group.** CloudFront uses one `CloudFront-VPCOrigins-Service-SG` per VPC for **every** VPC origin in that VPC. After this step, any other CloudFront distribution in your account with a VPC origin in the same VPC can also reach port 18042 and skip this Cognito gate. Put the UI host in a VPC used only for this UI (a separate `<prefix>-network`), or first check that no other distribution uses a VPC origin there: `aws cloudfront list-vpc-origins --query 'VpcOriginList.Items[].[Id,Name,OriginEndpointArn]' --output text` (each line shows the instance, ALB or NLB the origin points to; check its VPC).
 
 ```bash
 VPC_ID=$(aws cloudformation describe-stacks --stack-name "$STACK_PREFIX-network" \

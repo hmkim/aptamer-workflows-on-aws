@@ -1,7 +1,7 @@
 // Run: npx tsx --test edge/authz.test.ts
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isAllowed, idTokenFromCookies, FULL_GROUP, READONLY_GROUP } from './index.js';
+import { isAllowed, idTokenFromCookies, isBlockedPath, normalizePath, FULL_GROUP, READONLY_GROUP } from './index.js';
 
 test('full group may do everything except blocked paths', () => {
   for (const m of ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']) assert.equal(isAllowed([FULL_GROUP], m, '/api/train/jobs/submit'), true);
@@ -33,4 +33,17 @@ test('id token cookie lookup is scoped to the client id', () => {
     'a=1; CognitoIdentityServiceProvider.other.u.idToken=bad; CognitoIdentityServiceProvider.cid.u.idToken=good; x=y' }] } };
   assert.equal(idTokenFromCookies(req as never, 'cid'), 'good');
   assert.equal(idTokenFromCookies({ headers: {} } as never, 'cid'), undefined);
+});
+
+test('blocked path check normalises the URI first', () => {
+  for (const u of ['/_next/image', '//_next/image', '/_next//image', '///_next/image?url=x', '/%5Fnext/image',
+    '/_next%2Fimage', '/%5f%6Eext/image', '/_NEXT/Image', '/./_next/image', '/_next/./image', '/%255Fnext/image',
+    '/\\_next/image', '/%zz']) {
+    assert.equal(isBlockedPath(u), true, u);
+    assert.equal(isAllowed([FULL_GROUP], 'GET', u), false, u);
+  }
+  for (const u of ['/', '/viewer', '/_next/static/chunks/main.js', '/api/data/VAE-model-names']) {
+    assert.equal(isBlockedPath(u), false, u);
+  }
+  assert.equal(normalizePath('//A//b/%2e/c'), '/a/b/c');
 });

@@ -41,7 +41,7 @@ aws sts get-caller-identity --query Arn --output text
 
 You should see a role or user ARN. Do not paste it into issues or commits.
 
-The identity that runs the setup scripts needs permission to use CloudFormation with `CAPABILITY_NAMED_IAM` (the templates create IAM roles), and to create VPC, EC2, S3, KMS, ECR, AWS Batch, CodeBuild, CloudWatch Logs, and HealthOmics resources. HealthOmics VPC mode also needs `iam:CreateServiceLinkedRole` for `omics.amazonaws.com`.
+The identity that runs the setup scripts needs permission to use CloudFormation with `CAPABILITY_NAMED_IAM` (the templates create IAM roles), and to create VPC, EC2, S3, KMS, ECR, AWS Batch, CodeBuild, CloudWatch Logs, and HealthOmics resources. HealthOmics VPC mode (not yet validated) also needs `iam:CreateServiceLinkedRole` for `omics.amazonaws.com`.
 
 ## Region
 
@@ -54,7 +54,7 @@ aws ec2 describe-availability-zones --query 'AvailabilityZones[].ZoneName' --out
 
 You should see at least two Availability Zone names. An **Availability Zone (AZ)** is one or more separate data centers inside a Region.
 
-If you plan to use AWS HealthOmics, confirm that the Region offers it in the [HealthOmics endpoints list](https://docs.aws.amazon.com/general/latest/gr/healthomics-quotas.html). For HealthOmics VPC mode, also note which AZs HealthOmics supports in that Region ([supported AZs](https://docs.aws.amazon.com/omics/latest/dev/workflows-vpc-internet.html)).
+If you plan to use AWS HealthOmics, confirm that the Region offers it in the [HealthOmics endpoints list](https://docs.aws.amazon.com/general/latest/gr/healthomics-quotas.html). For HealthOmics VPC mode (not yet validated), also note which AZs HealthOmics supports in that Region ([supported AZs](https://docs.aws.amazon.com/omics/latest/dev/workflows-vpc-internet.html)).
 
 ## Quotas
 

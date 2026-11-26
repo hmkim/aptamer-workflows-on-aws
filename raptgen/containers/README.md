@@ -49,5 +49,3 @@ URI in `../batch/jobs.yaml`.
   `/usr/share/doc/aptamer-raptgen/pip-freeze.txt` (GPU image); a hash lock can be generated from it.
 - `python-dateutil` is 2.9.0.post0 (with `six`) instead of 4.0.0 because botocore requires `<3`.
 - Blackwell GPUs (sm_120) need a CUDA 12.8+ torch build.
-- The upstream patches still contain a comment mentioning an internal test id ("T05"). Changing it
-  changes the patched file checksum, so it is left as is.

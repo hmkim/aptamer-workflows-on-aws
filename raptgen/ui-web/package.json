@@ -9,7 +9,7 @@
     "test": "tsx --test edge/authz.test.ts",
     "e2e": "tsx scripts/e2e-roles.ts",
     "synth": "npm run build:edge && cdk synth",
-    "deploy": "npm run build:edge && cdk deploy --require-approval never"
+    "deploy": "npm run build:edge && cdk deploy"
   },
   "dependencies": {
     "aws-cdk-lib": "^2.278.0",

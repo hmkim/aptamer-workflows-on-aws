@@ -55,6 +55,8 @@ scripts/setup-batch.sh --prefix "$PREFIX" --region "$AWS_REGION" --gpu
 
 유용한 옵션(모두 선택): CPU용 `--max-vcpus`, `--instance-types`(기본 72, `c7i,c6i`), GPU용 `--gpu-max-vcpus`, `--gpu-instance-types`(기본 8, `g5.xlarge,g6.xlarge`). GPU 인스턴스는 NVIDIA 드라이버가 들어 있는 ECS GPU 최적화 Amazon Linux 2023 이미지(`ECS_AL2023_NVIDIA`)를 씁니다.
 
+**보안 강화:** compute 보안 그룹은 이미지 pull과 D1 다운로드가 NAT gateway를 거치므로 outbound TCP 443을 `0.0.0.0/0`으로 허용합니다. 좁히려면 VPC endpoint(ECR, CloudWatch Logs, S3 gateway)를 추가하고 `batch/infrastructure.yaml`의 `ComputeSecurityGroup` egress를 그쪽으로 제한하세요.
+
 ## 3단계: 스택 확인
 
 ```bash

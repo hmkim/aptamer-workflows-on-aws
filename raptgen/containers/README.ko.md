@@ -42,4 +42,3 @@ raptgen/containers/build.sh cpu                    # 빌드, push, digest URI �
 - CUDA wheel은 정확한 버전 고정이지만 해시 고정은 아닙니다. 실제로 설치된 목록은 `/usr/share/doc/aptamer-raptgen/pip-freeze.txt`(GPU 이미지)에 기록되며, 이 목록에서 해시 lock을 만들 수 있습니다.
 - `python-dateutil`은 botocore가 `<3`을 요구하므로 4.0.0이 아니라 2.9.0.post0(`six` 포함)입니다.
 - Blackwell GPU(sm_120)는 CUDA 12.8 이상 torch 빌드가 필요합니다.
-- 원본 패치에 내부 테스트 id("T05")를 언급하는 주석이 남아 있습니다. 바꾸면 패치된 파일의 checksum이 달라지므로 그대로 두었습니다.

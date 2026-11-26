@@ -13,6 +13,7 @@ You reach it through an SSM port forward.
 | `ec2.yaml` | host: AL2023, `m7i.2xlarge` default, encrypted gp3 200 GiB, IMDSv2 required (hop limit 1), SSM role, egress TCP 443 only. Needs `CAPABILITY_IAM`. |
 | `install.sh` | sends `install-host.sh` plus the patches through SSM Run Command and waits (15-30 min first build) |
 | `install-host.sh` | on the host: waits for cloud-init, Docker Compose plugin (v2.40.3) and Docker Buildx plugin (v0.39.1), sha256 checked, RaptGen-UI at the pinned commit, patches, `docker compose up -d --build` |
+| `NOTICE` | RaptGen-UI upstream (commit, MIT license, copyright) and the list of patches |
 | `connect.sh` | `aws ssm start-session` port forward to `localhost:18042` |
 | `tests/e2e_api.py` | API end-to-end test (Viewer, VAE training, GMM, Bayesian optimization) |
 | `patches/` | unified diffs against RaptGen-UI `13cad83` |

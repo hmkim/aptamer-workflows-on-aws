@@ -2,7 +2,7 @@
 
 # Shared private network
 
-AWS Batch, the RaptGen-UI EC2 host, and the optional HealthOmics VPC mode all use one private network, created by `batch/network.yaml` as the stack `<prefix>-network`. You rarely run this step by hand: `scripts/setup-batch.sh` and `scripts/setup-healthomics.sh --vpc` create the network when it is missing. Run it yourself when you want to choose the Availability Zones.
+AWS Batch, the RaptGen-UI EC2 host, and the optional HealthOmics VPC mode (not yet validated) all use one private network, created by `batch/network.yaml` as the stack `<prefix>-network`. You rarely run this step by hand: `scripts/setup-batch.sh` and `scripts/setup-healthomics.sh --vpc` create the network when it is missing. Run it yourself when you want to choose the Availability Zones.
 
 HealthOmics without `--vpc` (the default `RESTRICTED` mode) does not use this network.
 

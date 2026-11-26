@@ -19,10 +19,10 @@ index 6a10ba7..ede37c6 100644
              return self.next_locations
 -        import GPyOpt
 +        # aptamer-raptgen modern patch: GPyOpt (unmaintained since 2020) is not
-+        # installed in this image; Bayesian optimization is out of T05 scope.
++        # installed in this image; Bayesian optimization is not supported here.
 +        raise RuntimeError(
-+            "Bayesian optimization (GPyOpt) is excluded from the aptamer-raptgen "
-+            "modern image; use the legacy reference image for scripts/bo.py")
++            "Bayesian optimization (GPyOpt) is not included in this image; "
++            "use RaptGen-UI or the upstream environment for scripts/bo.py")
          bo_path = self.path_to_save_results/"bo.pkl"
          if bo_path.exists() and not force_rerun:
              logger.info(f"loading {bo_path}")

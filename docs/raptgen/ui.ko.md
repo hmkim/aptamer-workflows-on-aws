@@ -56,6 +56,8 @@ echo "$INSTANCE_ID"
 
 호스트는 Amazon Linux 2023, 암호화된 gp3 디스크, IMDSv2 필수, SSM role, TCP 443 outbound만 허용입니다 (SSM, GitHub, 컨테이너 레지스트리가 필요로 하므로 기본값은 `0.0.0.0/0`입니다. 네트워크가 허용하면 `HttpsEgressCidr` 파라미터로 좁히세요). EC2 콘솔에서 public IP가 없는 것을 볼 수 있습니다. 1~2분 뒤 **Systems Manager > Fleet Manager**에 managed node로 나타납니다. 2단계 전에 이것을 기다리세요. (그때 첫 부팅 스크립트가 아직 패키지를 설치하고 있을 수 있는데, `install.sh`가 끝날 때까지 기다립니다.)
 
+**보안 강화:** 설치 뒤에는 `HttpsEgressCidr`(예: 사내 proxy)나 `S3PrefixListId`와 SSM, ECR용 VPC interface endpoint로 egress를 좁히세요. 설치 자체에는 GitHub, 컨테이너 레지스트리, 패키지 미러가 필요합니다.
+
 ## 2단계. RaptGen-UI 설치
 
 ```bash
@@ -84,6 +86,8 @@ RaptGen-UI is up on 127.0.0.1:18042
 이전 테스트 실행에서 빌드는 약 9분 걸렸습니다. 이미지 크기는 backend와 worker가 각 약 5.4 GB, frontend가 762 MB였습니다.
 
 ## 3단계. 터널과 UI 열기
+
+> **검증에서 실행하지 않음.** 2026-11-26 검증에서는 테스트 PC에 Session Manager plugin이 없어 `connect.sh`(SSM 포트 포워딩)를 실행하지 못했습니다. 대신 SSM Run Command로 호스트에서 UI를 확인했습니다(4단계). 터널은 표준 `AWS-StartPortForwardingSessionToRemoteHost` 문서를 쓰지만, 이 단계는 아직 검증되지 않은 것으로 보세요.
 
 ```bash
 raptgen/ui/connect.sh --instance-id "$INSTANCE_ID"

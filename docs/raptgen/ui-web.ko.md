@@ -11,6 +11,7 @@
 > - gate를 검증하기 전에 origin을 열지 마세요(3단계). 먼저 검증하고, 그다음에 여세요.
 > - CloudFront에서 EC2 호스트까지는 VPC 안의 일반 HTTP입니다 (CloudFront VPC origin). 브라우저 쪽은 HTTPS입니다.
 > - 공개 데이터 또는 민감하지 않은 서열 데이터만 사용하세요.
+> - **남은 위험: 고정되지 않은 upstream 의존성.** 고정한 commit의 RaptGen-UI는 hash로 고정되지 않은 npm, conda/pip 패키지(Next.js 13.1 등)로 빌드되므로, 빌드할 때마다 알려진 문제가 있는 버전을 포함해 다른 버전을 받을 수 있습니다. gate가 `/_next/image`를 막고 로그인을 요구하지만, 로그인한 사용자는 나머지 코드에 그대로 닿습니다. 이미지를 정기적으로 다시 빌드해 검토하고, 사용자 수를 작게 유지하세요.
 
 기술 참조: [`raptgen/ui-web/README.md`](../../raptgen/ui-web/README.ko.md).
 
@@ -41,7 +42,7 @@ edge 함수 안에서 무엇이든 실패하면 요청은 503을 받고 전달�
 | 이름 변경, 삭제 | 가능 | 403 |
 | 어떤 그룹에도 속하지 않은 사용자 | 403 | 403 |
 
-Next.js 이미지 최적화 경로 `/_next/image`는 모두에게 막혀 있습니다 (쓰지 않는 경로).
+Next.js 이미지 최적화 경로 `/_next/image`는 모두에게 막혀 있습니다 (쓰지 않는 경로). 이 검사는 정규화한 경로(percent-decoding, 반복된 슬래시 합치기, 대소문자 무시)에 적용되므로 `//_next/image`나 `/%5Fnext/image`도 막힙니다.
 
 ## 시작하기 전에
 
@@ -86,6 +87,10 @@ npm run deploy -- \
 
 `npm run deploy`는 먼저 `UI_WEB_STACK`(기본값 `RaptGenUiWeb`)에 지정한 스택용 edge bundle을 빌드한 뒤 그 스택을 배포합니다. 다른 이름은 스택 이름에서 정해집니다. 기본 스택의 시크릿은 `/raptgen-ui-web/` 아래에, 다른 이름이면 `/<소문자 스택 이름>/` 아래에 있습니다 (예: `/my-ui-web/edge-auth`). Cognito user pool과 app client도 같은 이름을 씁니다. 같은 계정에 독립된 gate를 하나 더 만들려면 이 페이지의 모든 명령에서 새 `UI_WEB_STACK` 값을 쓰세요. `-c stackName=<name>`으로 줄 수도 있으며, 둘 다 주면 값이 같아야 합니다.
 
+`npm run deploy`는 CloudFormation 실행 전에 IAM과 보안 그룹 변경 승인을 묻습니다 (CDK `--require-approval` 기본값). 내용을 확인하세요. 자동화에서만, `npx cdk diff`를 확인한 뒤 `npm run deploy -- --require-approval never ...`를 쓰세요.
+
+**MFA.** `-c cognitoMfa=OPTIONAL|REQUIRED` (기본값 `OPTIONAL`). 실제 사용자에게는 `REQUIRED`를 쓰세요. 그러면 각 사용자가 첫 로그인 때 TOTP 앱을 설정합니다. Cognito는 user pool을 만들 때만 `REQUIRED`를 받으므로 첫 배포에서 정하세요. 검증 실행은 자동 역할 테스트(`scripts/e2e-roles.ts`)가 비밀번호로만 로그인하므로 `OPTIONAL`을 썼습니다.
+
 `originPort`의 기본값은 18042입니다. `cognitoDomainPrefix`는 Region 안에서 유일해야 하고 `aws`, `amazon`, `cognito`를 포함하면 안 됩니다. 생략하면 계정(기본이 아닌 이름이면 스택 이름도)에서 계산한 안정적인 값이 쓰입니다. Lambda@Edge와 그 설정 시크릿이 us-east-1에 있어야 하므로 gate는 항상 us-east-1에 만들어집니다. 계정, 인스턴스, 도메인은 코드에 박혀 있지 않고 AWS CLI 설정과 위의 context 값에서 옵니다.
 
 CloudFormation 스택 `$UI_WEB_STACK`이 `CREATE_COMPLETE`가 되고 `SiteUrl`, `UserPoolId`, `CognitoDomain`, `UserSecretPrefix` 같은 output이 보여야 합니다. 첫 배포는 약 10분 걸립니다 (CloudFront와 Lambda@Edge).
@@ -101,6 +106,8 @@ scripts/verify-gate.sh
 ### 3단계. origin을 CloudFront에만 열기
 
 UI 호스트에는 인바운드 규칙이 없습니다. 이 단계는 CloudFront VPC origin 서비스 보안 그룹만 18042 포트에 닿게 하는 규칙 하나를 추가합니다. 그 그룹은 UI 호스트의 VPC에 있습니다 (CloudFront가 만들며 이름은 `CloudFront-VPCOrigins-Service-SG`).
+
+**공유 보안 그룹.** CloudFront는 VPC마다 `CloudFront-VPCOrigins-Service-SG` 하나를 그 VPC의 **모든** VPC origin에 씁니다. 이 단계 뒤에는 같은 VPC에 VPC origin을 둔 계정의 다른 CloudFront distribution도 18042 포트에 닿을 수 있고 이 Cognito gate를 거치지 않습니다. UI 호스트는 이 UI만 쓰는 VPC(별도의 `<prefix>-network`)에 두거나, 먼저 그 VPC에 VPC origin을 쓰는 다른 distribution이 없는지 확인하세요: `aws cloudfront list-vpc-origins --query 'VpcOriginList.Items[].[Id,Name,OriginEndpointArn]' --output text` (각 줄은 origin이 가리키는 인스턴스, ALB, NLB를 보여 줍니다. 그 VPC를 확인하세요).
 
 ```bash
 VPC_ID=$(aws cloudformation describe-stacks --stack-name "$STACK_PREFIX-network" \
