@@ -42,6 +42,7 @@ cd raptgen/ui-web
 npm install
 npx tsx --test edge/authz.test.ts          # 역할 규칙 단위 테스트
 
+export UI_WEB_STACK=RaptGenUiWeb   # 스택 이름 (기본값). 아래 스크립트가 모두 읽습니다
 # 1. gate 배포 (edge bundle + CloudFront + Cognito)
 npm run deploy -- \
   -c originInstanceArn=<InstanceArn> \
@@ -61,7 +62,7 @@ aws cloudformation deploy --region <UI-HOST-REGION> --stack-name <prefix>-raptge
 scripts/add-user.sh <username> full|readonly
 ```
 
-파라미터는 CDK context와 AWS CLI 설정에서 옵니다. 계정, Region(gate는 항상 `us-east-1`), 인스턴스, 도메인은 코드에 박혀 있지 않습니다. `cognitoDomainPrefix`를 주지 않으면 계정에서 계산한 안정적인 `raptgen-ui-<16진수 10자리>` 값이 쓰입니다. 비밀번호는 Secrets Manager `/raptgen-ui-web/users/<username>`(us-east-1)에 있습니다. 사이트 주소는 스택 output `SiteUrl`입니다.
+파라미터는 CDK context, `UI_WEB_STACK`, AWS CLI 설정에서 옵니다. 계정, 인스턴스, 도메인은 코드에 박혀 있지 않고, gate는 항상 `us-east-1`에 있습니다 (Lambda@Edge). 스택 이름(`UI_WEB_STACK` 또는 `-c stackName=...`, 기본값 `RaptGenUiWeb`)이 다른 이름을 정합니다 (`lib/names.ts`, `scripts/names.sh`). 기본 스택의 시크릿은 `/raptgen-ui-web/` 아래, 다른 이름이면 `/<소문자 스택 이름>/` 아래에 있고, user pool과 app client도 같은 이름을 씁니다. edge bundle에는 시크릿 이름이 들어가므로 `bin/app.ts`는 다른 스택용으로 빌드된 bundle을 거부합니다. `cognitoDomainPrefix`를 주지 않으면 계정(기본 이름이 아니면 스택 이름도)에서 계산한 안정적인 값이 쓰입니다. 비밀번호는 Secrets Manager `<UserSecretPrefix output><username>`(us-east-1)에 있습니다. 사이트 주소는 스택 output `SiteUrl`입니다.
 
 ## 정문으로 테스트
 
@@ -76,7 +77,7 @@ FASTQ=<RAPT1_4R.fastq> SHOT_DIR=./shots npm run e2e
 1. `origin-access` 스택을 지웁니다 (유일한 인바운드 규칙이 사라집니다).
 2. 또는 CloudFront distribution을 비활성화합니다.
 3. 사용자 삭제: `aws cognito-idp admin-delete-user --region us-east-1 --user-pool-id <UserPoolId> --username <name>`.
-4. `npx cdk destroy`는 gate를 지웁니다. user pool, 로그 버킷, 사용자 시크릿은 보존되므로 직접 지우세요.
+4. `aws cloudformation delete-stack --region us-east-1 --stack-name "$UI_WEB_STACK"`로 gate를 지웁니다 (CloudFront가 Lambda@Edge 복제본을 아직 갖고 있으면 첫 시도는 실패할 수 있으니 나중에 다시 실행). user pool, 로그 버킷, 사용자 시크릿은 보존되므로 직접 지우세요.
 
 ## 파일
 

@@ -81,7 +81,7 @@ scripts/setup-batch.sh --prefix "$PREFIX" --region "$AWS_REGION" --build-image
 
 Without `--cpu` or `--gpu`, the script keeps the current compute setting. It packages the **committed** files of this repository (`git archive HEAD`; uncommitted edits are not included), uploads the archive to the data bucket, and starts AWS CodeBuild, which builds `Dockerfile` and pushes it to the private ECR repository with the tag recorded in the stack (`git-<commit>` by default).
 
-You should see `CodeBuild started for tag git-<commit>`, then `pipeline image build succeeded` after several minutes. If the tag already exists, you see `pipeline image tag ... already exists; skipping build`.
+You should see `CodeBuild started for tag git-<commit>`, then `pipeline image build succeeded` after several minutes (about 2 minutes in the validation run). If the tag already exists, you see `pipeline image tag ... already exists; skipping build`.
 
 ## Step 5: Load the public D1 data (CPU)
 
@@ -152,7 +152,9 @@ column -ts $'\t' "batch/runs/$RUN_ID/s3/copyin/result/enrich/top_candidates.tsv"
 
 ## Change compute later
 
-Run `scripts/setup-batch.sh` again with the flags you want. **The flags describe the final state, not a change**: on a CPU + GPU stack, `--gpu` alone removes the CPU compute environment, queue, and pipeline job definitions. Without `--cpu` or `--gpu`, the current setting is kept. The template refuses to turn both off.
+Run `scripts/setup-batch.sh` again with the flags you want. **The flags describe the final state, not a change**: on a CPU + GPU stack, `--gpu` alone removes the CPU compute environment, queue, and pipeline job definitions. Without `--cpu` or `--gpu`, the current setting is kept. The script and the template refuse to turn both off.
+
+The script prints the current and the resulting state (`compute now:   CPU=true GPU=true`, then `compute: CPU=false GPU=true`). When the run would turn OFF a compute type that is on, it prints a `WARNING` with what will be removed and asks you to type `yes`. Without a terminal (automation) it stops unless you pass `--yes`.
 
 ```bash
 scripts/setup-batch.sh --prefix "$PREFIX" --region "$AWS_REGION" --cpu --gpu   # add GPU to a CPU stack
@@ -242,7 +244,7 @@ If an upstream dependency fails, downstream work does not run successfully. See 
 
 ## Validated on
 
-> TODO(validation): wave 3 fills in the date, Region, and result for CPU only, CPU + GPU, and GPU only here and in [the validation guide](../validation.md#validated-on). Until then, treat this path as not yet validated end to end.
+Validated on 2026-11-26 in us-west-2 with a new prefix: CPU only (D1 loader and copy-in pattern 1), CPU + GPU, GPU only, and back to CPU + GPU, all passed. Details and durations: [the validation guide](../validation.md#validated-on). Patterns 2 (`submit_steps.sh`), 3 (Mountpoint) and the compatibility report were not re-run in this validation.
 
 ## Next
 

@@ -1,5 +1,9 @@
 version: 0.2
 
+# The commands use Bash features (set -E, pipefail); the CodeBuild default shell is sh.
+env:
+  shell: bash
+
 phases:
   pre_build:
     commands:

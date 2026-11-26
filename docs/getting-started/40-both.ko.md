@@ -34,7 +34,8 @@ scripts/setup-all.sh --prefix "$PREFIX" --region "$AWS_REGION"
 | `--build-image` | `setup-batch.sh` | CodeBuild로 CPU 파이프라인 이미지 빌드 |
 | `--gpu-max-vcpus <n>`, `--gpu-instance-types <list>` | `setup-batch.sh` | GPU 용량 |
 | `--mountpoint-version <v>`, `--mountpoint-sha256 <h>` | `setup-batch.sh` | Mountpoint 패키지 고정 |
-| `--vpc`, `--interface-endpoints` | `setup-healthomics.sh` | HealthOmics VPC 모드 (아직 검증되지 않음) |
+| `--vpc`, `--interface-endpoints`, `--endpoint-services <list>` | `setup-healthomics.sh` | HealthOmics VPC 모드 (아직 검증되지 않음) |
+| `--yes` | `setup-batch.sh` | 켜져 있는 compute를 끄는 것을 허용 ([나중에 컴퓨팅 바꾸기](20-batch.ko.md#나중에-컴퓨팅-바꾸기) 참고) |
 
 예: 파이프라인 이미지를 포함한 CPU + GPU Batch, 그리고 `RESTRICTED` 모드 HealthOmics:
 
@@ -65,7 +66,7 @@ scripts/setup-all.sh --prefix "$PREFIX" --region "$AWS_REGION" --cpu --gpu --bui
 
 ## 검증 기록
 
-> TODO(validation): 3차 작업에서 `setup-all.sh`의 날짜, 리전, 결과를 여기와 [검증 가이드](../validation.ko.md#검증-기록)에 채웁니다.
+2026-11-26에 us-west-2에서 검증했습니다. `setup-all.sh --cpu`가 network, CPU만 Batch, `RESTRICTED` HealthOmics 스택을 약 7.5분에 만들었고, `scripts/cleanup.sh --delete-data`가 지웠습니다. 차례로 하는 경로(같은 prefix로 Batch 다음 HealthOmics)도 실행했습니다. 자세한 내용은 [검증 가이드](../validation.ko.md#검증-기록)에 있습니다.
 
 ## 다음 단계
 

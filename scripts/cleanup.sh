@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Delete the stacks for one prefix in reverse order:
+#   <prefix>-raptgen-ui-origin-access, <prefix>-raptgen-ui, <prefix>-raptgen-jobs,
 #   <prefix>-healthomics-vpc, <prefix>-healthomics, <prefix>-batch, <prefix>-network
+# The optional RaptGen-UI web gate (CDK app in raptgen/ui-web, us-east-1) is not deleted here:
+# the script stops and tells you how to remove it while it still points at the UI host.
 # Buckets, KMS keys, ECR repositories, and log groups are retained by the
 # templates and are kept unless --delete-data is passed.
 set -euo pipefail
@@ -11,14 +14,15 @@ usage() {
   cat >&2 <<'EOF'
 Usage: scripts/cleanup.sh [--prefix <name>] [--region <region>] [--stacks <list>] [--yes] [--delete-data]
 
-  --stacks       comma-separated subset of healthomics-vpc,healthomics,batch,network (default: all)
+  --stacks       comma-separated subset of raptgen-ui-origin-access,raptgen-ui,raptgen-jobs,
+                 healthomics-vpc,healthomics,batch,network (default: all)
   --yes          do not ask for confirmation
   --delete-data  also delete retained data: S3 buckets (every object version), ECR
                  repositories and images, log groups; schedule KMS key deletion (7 days)
 EOF
 }
 
-ORDER=(healthomics-vpc healthomics batch network)
+ORDER=(raptgen-ui-origin-access raptgen-ui raptgen-jobs healthomics-vpc healthomics batch network)
 selected='' assume_yes=0 delete_data=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -39,13 +43,39 @@ for w in "${wanted[@]}"; do
 done
 is_wanted() { [[ ",$selected," == *",$1,"* ]]; }
 
-# The network can only go when nothing that uses it remains.
-if is_wanted network; then
-  for dep in batch healthomics-vpc; do
+# A stack can only go when nothing that uses it remains.
+guard() { # <kind> <dependent kind>...
+  local kind=$1 dep; shift
+  is_wanted "$kind" || return 0
+  for dep in "$@"; do
     if ! is_wanted "$dep" && stack_exists "$PREFIX-$dep"; then
-      die "stack $PREFIX-$dep still uses the network; add $dep to --stacks or delete it first"
+      die "stack $PREFIX-$dep still uses $PREFIX-$kind; add $dep to --stacks or delete it first"
     fi
   done
+}
+guard network batch healthomics-vpc raptgen-ui raptgen-ui-origin-access
+guard raptgen-ui raptgen-ui-origin-access
+guard batch raptgen-jobs
+
+# The optional web gate (raptgen/ui-web, a CDK stack in us-east-1) owns a CloudFront VPC origin whose
+# network interfaces and the security group CloudFront-VPCOrigins-Service-SG live in this network.
+# Remove the gate first; otherwise the UI host and the network cannot be deleted.
+if is_wanted raptgen-ui || is_wanted network; then
+  vpc=''
+  stack_exists "$(network_stack)" && vpc=$(stack_output "$(network_stack)" VpcId)
+  if [[ -n "$vpc" ]]; then
+    cf_sg=$(aws --region "$REGION" ec2 describe-security-groups \
+      --filters Name=group-name,Values=CloudFront-VPCOrigins-Service-SG "Name=vpc-id,Values=$vpc" \
+      --query 'SecurityGroups[0].GroupId' --output text 2>/dev/null || true)
+    if [[ -n "$cf_sg" && "$cf_sg" != None ]]; then
+      log "a CloudFront VPC origin still uses $(network_stack) (security group CloudFront-VPCOrigins-Service-SG)."
+      hint 'Remove the RaptGen-UI web gate first (it is a CDK stack in us-east-1, not deleted by this script):' \
+           '  cd raptgen/ui-web && UI_WEB_STACK=<gate stack name> npx cdk destroy' \
+           'Then wait until CloudFront has removed the VPC origin (the security group disappears; this can take' \
+           'several minutes) and run this script again. See docs/getting-started/90-cleanup.md.'
+      die 'refusing to delete the UI host or the network while the web gate still exists'
+    fi
+  fi
 fi
 
 targets=()
@@ -66,6 +96,8 @@ if ((delete_data)); then
         done
         v=$(stack_output "$stack" KmsKeyArn); [[ -n "$v" ]] && keys+=("$v")
         v=$(stack_output "$stack" LogGroupName); [[ -n "$v" ]] && log_groups+=("$v")
+        # CodeBuild creates this one itself on the first --build-image run.
+        v=$(stack_output "$stack" ImageBuildProjectName); [[ -n "$v" ]] && log_groups+=("/aws/codebuild/$v")
         ;;
       "$PREFIX-healthomics")
         v=$(stack_output "$stack" BucketName); [[ -n "$v" ]] && buckets+=("$v")

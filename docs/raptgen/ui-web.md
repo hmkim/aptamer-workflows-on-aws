@@ -51,7 +51,7 @@ The Next.js image optimizer path `/_next/image` is blocked for everyone (it is u
   raptgen/ui/install.sh --instance-id "$INSTANCE_ID" --bind-private-ip
   ```
 
-  On a host that already runs the UI, re-running `install.sh` resets the checkout to the pinned commit, re-applies the patches and rebuilds, so this switches the bind address (not re-tested in this repo). After this, the SSM tunnel needs the private IP too: `raptgen/ui/connect.sh --instance-id "$INSTANCE_ID" --remote-host <PrivateIp>` (the stack output `PrivateIp` of `<prefix>-raptgen-ui`).
+  On a host that already runs the UI, re-running `install.sh` resets the checkout to the pinned commit, re-applies the patches and rebuilds, so this switches the bind address (validated 2026-11-26: about 1 minute on a host with cached images). After this, the SSM tunnel needs the private IP too: `raptgen/ui/connect.sh --instance-id "$INSTANCE_ID" --remote-host <PrivateIp>` (the stack output `PrivateIp` of `<prefix>-raptgen-ui`).
 - Node.js 22 or newer and npm.
 - The AWS CDK bootstrapped in **us-east-1** (Lambda@Edge must live there): `npx cdk bootstrap aws://<ACCOUNT_ID>/us-east-1`.
 - From the UI host stack `<prefix>-raptgen-ui`: outputs `InstanceArn`, `PrivateDnsName`, `SecurityGroupId`.
@@ -59,6 +59,7 @@ The Next.js image optimizer path `/_next/image` is blocked for everyone (it is u
 
 ```bash
 export STACK_PREFIX=aptamer-workflows
+export UI_WEB_STACK=RaptGenUiWeb      # name of the gate stack; pick a new name for a second gate
 UI_OUT() { aws cloudformation describe-stacks --stack-name "$STACK_PREFIX-raptgen-ui" \
   --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue" --output text; }
 INSTANCE_ARN=$(UI_OUT InstanceArn); PRIVATE_DNS=$(UI_OUT PrivateDnsName); UI_SG=$(UI_OUT SecurityGroupId)
@@ -83,9 +84,11 @@ npm run deploy -- \
   -c cognitoDomainPrefix=<unique-prefix>
 ```
 
-`originPort` defaults to 18042. `cognitoDomainPrefix` must be unique in the Region and must not contain `aws`, `amazon` or `cognito`. If you leave it out, a stable `raptgen-ui-<10 hex>` value derived from your account is used. The gate is always created in us-east-1. No account, Region, instance or domain is hard-coded; they come from your AWS CLI configuration and the context values above.
+`npm run deploy` first builds the edge bundle for the stack named in `UI_WEB_STACK` (default `RaptGenUiWeb`), then deploys that stack. The stack name sets the other names: for the default stack the secrets are under `/raptgen-ui-web/`, for any other name under `/<stack name in lower case>/` (for example `/my-ui-web/edge-auth`), and the Cognito user pool and app client take the same name. To run a second, independent gate in the same account, use a new `UI_WEB_STACK` value in every command of this page. You can also pass `-c stackName=<name>`; it must match `UI_WEB_STACK` when both are set.
 
-You should see the CloudFormation stack `RaptGenUiWeb` reach `CREATE_COMPLETE` and outputs such as `SiteUrl`, `UserPoolId` and `CognitoDomain`. CloudFront deployment can take several minutes.
+`originPort` defaults to 18042. `cognitoDomainPrefix` must be unique in the Region and must not contain `aws`, `amazon` or `cognito`. If you leave it out, a stable value derived from your account (and from the stack name, for a non-default name) is used. The gate is always created in us-east-1, because Lambda@Edge and its configuration secret must live there. No account, instance or domain is hard-coded; they come from your AWS CLI configuration and the context values above.
+
+You should see the CloudFormation stack `$UI_WEB_STACK` reach `CREATE_COMPLETE` and outputs such as `SiteUrl`, `UserPoolId`, `CognitoDomain` and `UserSecretPrefix`. The first deployment takes about 10 minutes (CloudFront and Lambda@Edge).
 
 ### Step 2. Verify that anonymous access is denied
 
@@ -93,20 +96,24 @@ You should see the CloudFormation stack `RaptGenUiWeb` reach `CREATE_COMPLETE` a
 scripts/verify-gate.sh
 ```
 
-It must end with every line `OK` and exit code 0. It checks that every page and API path (any method) redirects to **this** pool's Cognito login, that a forged OAuth callback and a forged token cookie are rejected, and that `/logout` goes to the Cognito logout. If a line says `FAIL`, stop and do not continue to step 3.
+It reads `UI_WEB_STACK` (default `RaptGenUiWeb`) and prints `gate stack: <name> (us-east-1)` first. It must end with every line `OK` and exit code 0. It checks that every page and API path (any method) redirects to **this** pool's Cognito login, that a forged OAuth callback and a forged token cookie are rejected, and that `/logout` goes to the Cognito logout. If a line says `FAIL`, stop and do not continue to step 3.
 
 ### Step 3. Open the origin to CloudFront only
 
 The UI host has no inbound rule. This step adds one rule that lets only the CloudFront VPC origin service security group reach port 18042. Find that group in the VPC of the UI host (CloudFront creates it, named `CloudFront-VPCOrigins-Service-SG`):
 
 ```bash
+VPC_ID=$(aws cloudformation describe-stacks --stack-name "$STACK_PREFIX-network" \
+  --query "Stacks[0].Outputs[?OutputKey=='VpcId'].OutputValue" --output text)
 CF_SG=$(aws ec2 describe-security-groups \
-  --filters Name=group-name,Values=CloudFront-VPCOrigins-Service-SG Name=vpc-id,Values=<VpcId> \
+  --filters Name=group-name,Values=CloudFront-VPCOrigins-Service-SG Name=vpc-id,Values="$VPC_ID" \
   --query 'SecurityGroups[0].GroupId' --output text)
 aws cloudformation deploy --stack-name "$STACK_PREFIX-raptgen-ui-origin-access" \
   --template-file origin-access.yaml \
   --parameter-overrides UiSecurityGroupId="$UI_SG" CloudFrontVpcOriginSecurityGroupId="$CF_SG"
 ```
+
+`CF_SG` must be an `sg-...` value. If it is `None`, CloudFront has not finished creating the VPC origin yet; wait a few minutes and repeat.
 
 ### Step 4. Add users
 
@@ -115,11 +122,13 @@ scripts/add-user.sh <username> full        # may train and delete
 scripts/add-user.sh <username> readonly    # view only
 ```
 
-The script creates the Cognito user with a random permanent password and stores it in Secrets Manager under `/raptgen-ui-web/users/<username>` in us-east-1. It never prints the password. Read it with:
+Both scripts read `UI_WEB_STACK`. The script creates the Cognito user with a random permanent password and stores it in Secrets Manager in us-east-1 under the stack output `UserSecretPrefix` plus the user name (`/raptgen-ui-web/users/<username>` for the default stack). It never prints the password. Read it with:
 
 ```bash
+SECRET_PREFIX=$(aws cloudformation describe-stacks --region us-east-1 --stack-name "$UI_WEB_STACK" \
+  --query "Stacks[0].Outputs[?OutputKey=='UserSecretPrefix'].OutputValue" --output text)
 aws secretsmanager get-secret-value --region us-east-1 \
-  --secret-id /raptgen-ui-web/users/<username> --query SecretString --output text
+  --secret-id "${SECRET_PREFIX}<username>" --query SecretString --output text
 ```
 
 Give each person only their own credentials, through a safe channel. Open the `SiteUrl` from step 1 and sign in.
@@ -151,7 +160,7 @@ FASTQ=<path to RAPT1_4R.fastq> SHOT_DIR=./shots npm run e2e
 
 | Validated on | Result |
 |---|---|
-| `TODO(validation)` | fresh deployment of steps 1 to 4 with this repo, verify-gate and role test: result and date go here |
+| 2026-11-26, us-east-1 gate, us-west-2 host | Fresh deployment of steps 1 to 4 with a non-default `UI_WEB_STACK`: `verify-gate.sh` 15/15 OK before the origin was opened, `e2e-roles.ts` `E2E PASS`, users and the gate removed afterwards. |
 
 ## Close the door
 
@@ -165,6 +174,13 @@ Choose what you need:
 
 2. **Or disable the CloudFront distribution** (CloudFront console).
 3. **Remove one user:** `aws cognito-idp admin-delete-user --region us-east-1 --user-pool-id <UserPoolId> --username <name>`.
-4. **Remove everything:** `npx cdk destroy` (in `raptgen/ui-web`) removes the gate. The user pool, the log bucket and the users' secrets are **retained**; delete them by hand.
+4. **Remove everything:** delete the origin-access stack (item 1), then the gate stack:
+
+   ```bash
+   aws cloudformation delete-stack --region us-east-1 --stack-name "$UI_WEB_STACK"
+   aws cloudformation wait stack-delete-complete --region us-east-1 --stack-name "$UI_WEB_STACK"
+   ```
+
+   CloudFront keeps Lambda@Edge replicas for a while after the distribution is gone, so the first delete can end in `DELETE_FAILED` on the edge function. Wait (in the validation run a retry about 25 minutes later worked; it can take longer) and delete the stack again. The user pool (with deletion protection), the log bucket and the users' secrets are **retained**; delete them by hand after you have checked them (see [cleanup](../getting-started/90-cleanup.md#step-2-remove-the-raptgen-ui-web-gate-first-if-you-created-it)).
 
 Back to [RaptGen-UI on a private EC2 host](ui.md) | [Index](README.md)

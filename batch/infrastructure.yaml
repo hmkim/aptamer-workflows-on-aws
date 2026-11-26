@@ -534,7 +534,7 @@ Resources:
             architecture=$(uname -m)
             dnf install -y -q fuse3
             curl --fail --location --proto '=https' --proto-redir '=https' \
-              "https://s3.amazonaws.com/mountpoint-s3-release/${MountpointVersion}/$architecture/mount-s3.rpm" \
+              "https://s3.amazonaws.com/mountpoint-s3-release/${MountpointVersion}/$architecture/mount-s3-${MountpointVersion}-$architecture.rpm" \
               -o /var/tmp/mount-s3.rpm
             printf '%s  %s\n' '${MountpointPackageSha256}' /var/tmp/mount-s3.rpm | sha256sum -c -
             dnf install -y -q /var/tmp/mount-s3.rpm

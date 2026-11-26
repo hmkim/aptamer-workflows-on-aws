@@ -15,7 +15,7 @@ queue_for_device() { # prefix cpu|gpu -> queue name, or exit with a clear messag
   q="$(stack_output "$1-batch" "${key}")" || { echo "cannot read stack $1-batch (wrong --stack-prefix, Region or credentials?)" >&2; exit 1; }
   if [[ -z "${q}" ]]; then
     echo "The $2 queue is disabled in stack $1-batch (no ${key} output)." >&2
-    echo "Enable it (Enable${2^^}=true) and redeploy the batch stack, or use the other device." >&2
+    echo "Enable it with scripts/setup-batch.sh --prefix $1 --cpu --gpu (Enable${2^}=true), or use the other device." >&2
     exit 1
   fi
   printf '%s' "${q}"

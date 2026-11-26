@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Submit the RaptGen CPU-vs-GPU benchmark (fixed epochs on paper dataset A).
 #
-#   submit-bench.sh --device cpu|gpu|both [--epochs N] [--stack-prefix P] [--jobdef-prefix raptgen]
+#   submit-bench.sh --device cpu|gpu|both [--epochs N] [--stack-prefix P] [--jobdef-prefix <stack-prefix>-raptgen]
 #
 # The GPU job times CUDA and then CPU on the same instance. Results are JSON lines
 # in the CloudWatch log stream of the job; status.sh prints them.
@@ -11,7 +11,7 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "${here}/lib.sh"
 
 device="" epochs=5
-prefix="${STACK_PREFIX:-aptamer-workflows}" jdprefix=raptgen
+prefix="${STACK_PREFIX:-aptamer-workflows}" jdprefix=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --device) device="${2:?}"; shift 2 ;;
@@ -22,6 +22,7 @@ while [[ $# -gt 0 ]]; do
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
 done
+jdprefix="${jdprefix:-${prefix}-raptgen}"   # job definitions <stack-prefix>-raptgen-* (jobs.yaml NamePrefix)
 [[ "${device}" == cpu || "${device}" == gpu || "${device}" == both ]] || { echo "--device cpu|gpu|both is required" >&2; exit 2; }
 [[ "${epochs}" =~ ^[1-9][0-9]{0,2}$ ]] || { echo "--epochs must be 1..999" >&2; exit 2; }
 

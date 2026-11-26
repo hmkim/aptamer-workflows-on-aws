@@ -18,7 +18,7 @@
    | CPU와 GPU | `scripts/setup-batch.sh --cpu --gpu` | `--device cpu`, `--device gpu` |
    | GPU만 | `scripts/setup-batch.sh --gpu` | `--device gpu` |
 
-   스택 이름은 `<prefix>-batch`입니다 (기본 prefix는 `aptamer-workflows`). 이 스택이 이 가이드에서 쓰는 ECR 저장소 `raptgen-cpu`, `raptgen-gpu`, job role, 로그 그룹을 만듭니다.
+   스택 이름은 `<prefix>-batch`입니다 (기본 prefix는 `aptamer-workflows`). 이 스택이 이 가이드에서 쓰는 ECR 저장소 `<prefix>-batch-raptgen-cpu`, `<prefix>-batch-raptgen-gpu`(켠 compute와 관계없이 항상 둘 다), job role, 로그 그룹을 만듭니다.
 
 2. **GPU 할당량 (GPU 경로만).** GPU 인스턴스(`g5`, `g6`)는 **Running On-Demand G and VT instances** vCPU 할당량을 사용하며, 새 계정에서는 이 값이 0인 경우가 많습니다. GPU compute environment를 켜기 전에 Service Quotas에서 확인하세요. 할당량이 모자라면 GPU job이 계속 `RUNNABLE`에 머뭅니다.
 
@@ -50,12 +50,12 @@ raptgen/containers/build.sh gpu
 
 ```text
 image digest URI (use this in raptgen/batch/jobs.yaml parameters):
-<ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/raptgen-cpu@sha256:<64자리 16진수>
+<ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/<prefix>-batch-raptgen-cpu@sha256:<64자리 16진수>
 ```
 
 URI 두 개(또는 빌드한 하나)를 복사해 두세요. 2단계에서 씁니다. push 없이 빌드만 하려면 `--no-push`를 붙입니다.
 
-스택에 `RaptgenGpuRepositoryUri` output이 없다는 메시지가 나오면 Batch 스택에서 GPU compute를 켜지 않은 것입니다. `scripts/setup-batch.sh --cpu --gpu`를 다시 실행하세요.
+두 저장소는 GPU compute가 꺼져 있어도 있으므로 GPU 이미지를 먼저 빌드하고 GPU는 나중에 켜도 됩니다. GPU job에는 GPU 큐가 필요합니다. `scripts/setup-batch.sh --cpu --gpu`(또는 `--gpu`)를 실행하기 전에는 `submit-train.sh --device gpu`가 `The gpu queue is disabled`로 멈춥니다. 검증 실행에서는 CPU 이미지 빌드가 약 2분, GPU 이미지(CUDA wheel)가 약 7분 걸렸습니다 (검증용 작업 PC 기준).
 
 ## 2단계. job definition 배포
 
@@ -77,6 +77,7 @@ role ARN과 로그 그룹 이름이 출력되어야 합니다.
 aws cloudformation deploy --stack-name "$STACK_PREFIX-raptgen-jobs" \
   --template-file raptgen/batch/jobs.yaml \
   --parameter-overrides \
+    NamePrefix="$STACK_PREFIX-raptgen" \
     CpuImageUri=<cpu-digest-uri> \
     GpuImageUri=<gpu-digest-uri> \
     JobRoleArn="$JOB_ROLE" LogGroupName="$LOG_GROUP"
@@ -86,10 +87,10 @@ aws cloudformation deploy --stack-name "$STACK_PREFIX-raptgen-jobs" \
 
 | Job definition | 하는 일 | 필요한 값 |
 |---|---|---|
-| `raptgen-train-cpu` | CPU로 학습 + encode | `CpuImageUri` |
-| `raptgen-train-gpu` | GPU 1개로 학습 + encode | `GpuImageUri` |
-| `raptgen-bench-cpu` | CPU 시간 측정 벤치마크 | `CpuImageUri` |
-| `raptgen-bench-gpu` | GPU 1개로 측정한 뒤 같은 인스턴스의 CPU로도 측정 | `GpuImageUri` |
+| `<prefix>-raptgen-train-cpu` | CPU로 학습 + encode | `CpuImageUri` |
+| `<prefix>-raptgen-train-gpu` | GPU 1개로 학습 + encode | `GpuImageUri` |
+| `<prefix>-raptgen-bench-cpu` | CPU 시간 측정 벤치마크 | `CpuImageUri` |
+| `<prefix>-raptgen-bench-gpu` | GPU 1개로 측정한 뒤 같은 인스턴스의 CPU로도 측정 | `GpuImageUri` |
 
 모든 컨테이너는 non-root 사용자(UID 10001), 읽기 전용 루트 파일 시스템, 2 GiB tmpfs `/tmp`로 실행되고 들어오는 네트워크 포트가 없습니다. 로그는 Batch 스택의 로그 그룹으로 갑니다. 이미지는 태그가 아니라 digest로 고정됩니다.
 
@@ -101,10 +102,10 @@ raptgen/batch/submit-train.sh --device cpu
 raptgen/batch/submit-train.sh --device gpu
 ```
 
-`--input`을 주지 않으면 두 이미지에 들어 있는 RaptGen 논문 dataset A(`data/real/A_4R.fastq`, 80,864 reads, 공개 데이터)를 사용합니다. 기본값은 50 epoch, `--min-count 2`(고유 서열 3,043개)입니다. 내 reads를 쓰려면 job role이 읽을 수 있는 버킷(work bucket도 가능)에 FASTQ를 올리고 지정하세요.
+`--input`을 주지 않으면 두 이미지에 들어 있는 RaptGen 논문 dataset A(`data/real/A_4R.fastq`, 80,864 reads, 공개 데이터)를 사용합니다. 기본값은 50 epoch, `--min-count 2`(고유 서열 3,043개)입니다. 내 reads를 쓰려면 work bucket의 `runs/` 아래에 FASTQ를 올리고 지정하세요 (job role은 그 prefix만 읽고 씁니다).
 
 ```bash
-raptgen/batch/submit-train.sh --device cpu --input s3://<WORK_BUCKET>/my-reads.fastq --epochs 100
+raptgen/batch/submit-train.sh --device cpu --input s3://<WORK_BUCKET>/runs/inputs/my-reads.fastq --epochs 100
 ```
 
 | 옵션 | 뜻 |
@@ -114,7 +115,7 @@ raptgen/batch/submit-train.sh --device cpu --input s3://<WORK_BUCKET>/my-reads.f
 | `--epochs N` | 학습 epoch 수, 기본 50 |
 | `--min-count N` | 최소 N번 나온 서열만 사용, 기본 2. min-count 1은 서열이 더 많고(dataset A 기준 고유 38,513개) epoch당 약 10배 느립니다. |
 | `--threshold N` | 원본 학습 스크립트에 전달, 기본 50 |
-| `--stack-prefix`, `--jobdef-prefix` | 기본값 `aptamer-workflows`, `raptgen` |
+| `--stack-prefix`, `--jobdef-prefix` | 기본값 `aptamer-workflows`, `<stack-prefix>-raptgen` (위의 `NamePrefix`와 같음) |
 
 이렇게 보여야 합니다.
 
@@ -122,7 +123,7 @@ raptgen/batch/submit-train.sh --device cpu --input s3://<WORK_BUCKET>/my-reads.f
 submitted train-cpu-<timestamp>
   job id : <JOB_ID>
   queue  : <queue name>
-  output : s3://<WORK_BUCKET>/raptgen/train-cpu-<timestamp>/
+  output : s3://<WORK_BUCKET>/runs/raptgen/train-cpu-<timestamp>/
 check with: raptgen/batch/status.sh <JOB_ID>
 ```
 
@@ -146,7 +147,7 @@ raptgen/batch/status.sh --list           # 켜 둔 모든 큐의 최근 job
 `status.sh`는 결과가 저장될 S3 위치도 출력합니다. job이 `SUCCEEDED`가 되면 학습 job은 다음을 써 둡니다.
 
 ```bash
-aws s3 ls s3://<WORK_BUCKET>/raptgen/train-cpu-<timestamp>/
+aws s3 ls s3://<WORK_BUCKET>/runs/raptgen/train-cpu-<timestamp>/
 ```
 
 | 파일 | 내용 |
@@ -162,7 +163,7 @@ aws s3 ls s3://<WORK_BUCKET>/raptgen/train-cpu-<timestamp>/
 한 실행의 결과를 모두 내려받으려면:
 
 ```bash
-aws s3 cp --recursive s3://<WORK_BUCKET>/raptgen/train-cpu-<timestamp>/ ./raptgen-run/
+aws s3 cp --recursive s3://<WORK_BUCKET>/runs/raptgen/train-cpu-<timestamp>/ ./raptgen-run/
 ```
 
 ## 알아 두면 좋은 점
@@ -176,6 +177,6 @@ aws s3 cp --recursive s3://<WORK_BUCKET>/raptgen/train-cpu-<timestamp>/ ./raptge
 
 | 항목 | 상태 |
 |---|---|
-| 새 스택에서 이 가이드대로 실행 (CPU, GPU, 둘 다) | `TODO(validation)`: 검증 실행 후 결과를 추가합니다 |
+| 새 스택에서 이 가이드대로 실행 (CPU, GPU, 둘 다) | 2026-11-26 us-west-2에서 통과: 두 이미지, job definition, CPU와 GPU 3 epoch 학습, `submit-bench.sh --device both --epochs 2`, `status.sh`, S3 출력. [검증](../validation.ko.md#검증-기록) 참고. |
 
 다음: [CPU vs GPU 벤치마크](benchmark.ko.md) | [목차](README.ko.md)

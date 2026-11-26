@@ -47,14 +47,14 @@ VPC id와 subnet id 하나가 보여야 합니다. 호스트를 배포합니다.
 ```bash
 aws cloudformation deploy --stack-name "$STACK_PREFIX-raptgen-ui" --capabilities CAPABILITY_IAM \
   --template-file raptgen/ui/ec2.yaml \
-  --parameter-overrides VpcId="$VPC_ID" PrivateSubnetId="$SUBNET_ID"
+  --parameter-overrides VpcId="$VPC_ID" PrivateSubnetId="$SUBNET_ID" NamePrefix="$STACK_PREFIX"
 
 INSTANCE_ID=$(aws cloudformation describe-stacks --stack-name "$STACK_PREFIX-raptgen-ui" \
   --query "Stacks[0].Outputs[?OutputKey=='InstanceId'].OutputValue" --output text)
 echo "$INSTANCE_ID"
 ```
 
-호스트는 Amazon Linux 2023, 암호화된 gp3 디스크, IMDSv2 필수, SSM role, TCP 443 outbound만 허용입니다 (SSM, GitHub, 컨테이너 레지스트리가 필요로 하므로 기본값은 `0.0.0.0/0`입니다. 네트워크가 허용하면 `HttpsEgressCidr` 파라미터로 좁히세요). EC2 콘솔에서 public IP가 없는 것을 볼 수 있습니다. 1~2분 뒤 **Systems Manager > Fleet Manager**에 managed node로 나타납니다. 2단계 전에 이것을 기다리세요.
+호스트는 Amazon Linux 2023, 암호화된 gp3 디스크, IMDSv2 필수, SSM role, TCP 443 outbound만 허용입니다 (SSM, GitHub, 컨테이너 레지스트리가 필요로 하므로 기본값은 `0.0.0.0/0`입니다. 네트워크가 허용하면 `HttpsEgressCidr` 파라미터로 좁히세요). EC2 콘솔에서 public IP가 없는 것을 볼 수 있습니다. 1~2분 뒤 **Systems Manager > Fleet Manager**에 managed node로 나타납니다. 2단계 전에 이것을 기다리세요. (그때 첫 부팅 스크립트가 아직 패키지를 설치하고 있을 수 있는데, `install.sh`가 끝날 때까지 기다립니다.)
 
 ## 2단계. RaptGen-UI 설치
 
@@ -62,13 +62,13 @@ echo "$INSTANCE_ID"
 raptgen/ui/install.sh --instance-id "$INSTANCE_ID"
 ```
 
-스크립트는 SSM 명령 하나를 보내 Docker Compose plugin(버전 고정, checksum 검증)을 설치하고, 고정된 commit의 RaptGen-UI를 clone하고, 아래 패치를 적용한 뒤 `docker compose up -d --build`를 실행합니다. 끝날 때까지 기다리며 출력의 마지막 부분을 보여 줍니다. 첫 빌드는 15~30분 걸립니다. 마지막에 이렇게 나옵니다.
+스크립트는 SSM 명령 하나를 보내 첫 부팅 설정이 끝나기를 기다린 뒤 Docker Compose와 Docker Buildx plugin(버전 고정, checksum 검증. Amazon Linux의 docker 패키지에는 `docker compose build`에 필요한 Buildx가 없습니다)을 설치하고, 고정된 commit의 RaptGen-UI를 clone하고, 아래 패치를 적용한 뒤 `docker compose up -d --build`를 실행합니다. 끝날 때까지 기다리며 stderr와 stdout의 마지막 부분을 차례로 보여 줍니다. 첫 빌드는 15~30분 걸립니다 (검증 실행에서는 12분). 마지막에 이렇게 나옵니다.
 
 ```text
 RaptGen-UI is up on 127.0.0.1:18042
 ```
 
-네트워크가 TCP 443 outbound만 허용하고 80 포트가 막혀 있으면 `--apt-https`를 추가하세요. 웹 접속 옵션에서는 `--bind-private-ip`를 쓰세요. [ui-web](ui-web.ko.md)을 보세요.
+1단계의 호스트는 outbound TCP 443만 허용하므로 `install.sh`는 HTTPS 전용 apt 패치를 기본으로 적용합니다. 80 포트도 열린 네트워크의 호스트라면 `--apt-http`로 이 패치를 건너뛸 수 있습니다. 웹 접속 옵션에서는 `--bind-private-ip`를 추가하세요. [ui-web](ui-web.ko.md)을 보세요.
 
 ### 패치가 하는 일
 
@@ -79,7 +79,7 @@ RaptGen-UI is up on 127.0.0.1:18042
 | `0001-frontend-bookworm-base.patch` | frontend 이미지가 `node:20.2-slim`(Debian 11) 기반입니다. 보안 저장소가 없어져 빌드가 404로 실패합니다. | `node:20-bookworm-slim` 사용 |
 | `0002-relative-api-base.patch` | 브라우저 코드가 `http://localhost:18042/api`를 호출합니다. 호스트 자신에서만 동작하고 터널이나 웹 접속에서는 동작하지 않습니다. | 상대 경로 `/api` 호출 |
 | `0003-publish-on-bind-address.patch` | 포트가 모든 인터페이스에 공개됩니다. | `${UI_BIND_ADDR:-127.0.0.1}:18042`로 공개. 기본값은 loopback |
-| `optional/0001-https-only-apt.patch` | TCP 443은 되지만 80 포트가 막힌 네트워크 전용 | HTTPS apt와 호스트 CA bundle 사용 (`--apt-https`) |
+| `optional/0001-https-only-apt.patch` | TCP 443은 되지만 80 포트가 막힌 네트워크 (`ec2.yaml` 호스트 포함). 기본 적용, `--apt-http`로 건너뜀 | HTTPS apt와 호스트 CA bundle 사용 |
 
 이전 테스트 실행에서 빌드는 약 9분 걸렸습니다. 이미지 크기는 backend와 worker가 각 약 5.4 GB, frontend가 762 MB였습니다.
 
@@ -144,7 +144,7 @@ python3 raptgen/ui/tests/e2e_api.py --base-url http://localhost:18042 \
 
 | 검증일 | 결과 |
 |---|---|
-| `TODO(validation)` | 새 스택에서 이 저장소의 스크립트로 1~4단계 실행: 결과와 날짜를 여기에 추가 |
+| 2026-11-26, us-west-2 | 새 스택에서 1, 2, 4단계 통과 (4단계는 SSM Run Command로 호스트에서 실행: `ALL: PASS`, 10 epoch VAE 242초). 3단계 SSM 포트 포워딩은 테스트 PC에 Session Manager plugin이 없어 실행하지 않았습니다. |
 
 ## UI 안의 RaptGen 버전
 

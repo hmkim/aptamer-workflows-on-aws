@@ -81,7 +81,7 @@ scripts/setup-batch.sh --prefix "$PREFIX" --region "$AWS_REGION" --build-image
 
 `--cpu`나 `--gpu`를 주지 않으면 현재 컴퓨팅 설정을 그대로 둡니다. 스크립트는 이 저장소의 **커밋된** 파일을 묶고(`git archive HEAD`, 커밋하지 않은 수정은 포함되지 않음), 데이터 버킷에 올리고, AWS CodeBuild를 시작합니다. CodeBuild는 `Dockerfile`을 빌드해 스택에 기록된 태그(기본값 `git-<commit>`)로 private ECR 리포지토리에 push합니다.
 
-`CodeBuild started for tag git-<commit>`가 보이고, 몇 분 뒤 `pipeline image build succeeded`가 보여야 합니다. 태그가 이미 있으면 `pipeline image tag ... already exists; skipping build`가 보입니다.
+`CodeBuild started for tag git-<commit>`가 보이고, 몇 분 뒤(검증 실행에서는 약 2분) `pipeline image build succeeded`가 보여야 합니다. 태그가 이미 있으면 `pipeline image tag ... already exists; skipping build`가 보입니다.
 
 ## 5단계: 공개 D1 데이터 불러오기 (CPU)
 
@@ -152,7 +152,9 @@ column -ts $'\t' "batch/runs/$RUN_ID/s3/copyin/result/enrich/top_candidates.tsv"
 
 ## 나중에 컴퓨팅 바꾸기
 
-원하는 플래그로 `scripts/setup-batch.sh`를 다시 실행하세요. **플래그는 변경분이 아니라 최종 상태를 뜻합니다.** CPU + GPU 스택에 `--gpu`만 주면 CPU compute environment, 큐, 파이프라인 job definition이 삭제됩니다. `--cpu`와 `--gpu`를 모두 빼면 현재 설정이 유지됩니다. 템플릿은 둘 다 끄는 것을 거부합니다.
+원하는 플래그로 `scripts/setup-batch.sh`를 다시 실행하세요. **플래그는 변경분이 아니라 최종 상태를 뜻합니다.** CPU + GPU 스택에 `--gpu`만 주면 CPU compute environment, 큐, 파이프라인 job definition이 삭제됩니다. `--cpu`와 `--gpu`를 모두 빼면 현재 설정이 유지됩니다. 스크립트와 템플릿은 둘 다 끄는 것을 거부합니다.
+
+스크립트는 현재 상태와 결과 상태를 출력합니다(`compute now:   CPU=true GPU=true`, 다음에 `compute: CPU=false GPU=true`). 켜져 있는 compute를 끄게 되면 무엇이 지워지는지 `WARNING`으로 알려 주고 `yes`를 입력하라고 묻습니다. 터미널이 없으면(자동화) `--yes`를 주지 않는 한 멈춥니다.
 
 ```bash
 scripts/setup-batch.sh --prefix "$PREFIX" --region "$AWS_REGION" --cpu --gpu   # add GPU to a CPU stack
@@ -242,7 +244,7 @@ printf 'S1=%s\nS2=%s\nS3=%s\nS4=%s\nS5=%s\n' "$S1_JOB_ID" "$S2_JOB_ID" "$S3_JOB_
 
 ## 검증 기록
 
-> TODO(validation): 3차 작업에서 CPU만, CPU + GPU, GPU만 각각의 날짜, 리전, 결과를 여기와 [검증 가이드](../validation.ko.md#검증-기록)에 채웁니다. 그 전까지 이 경로는 처음부터 끝까지 검증되지 않은 것으로 보세요.
+2026-11-26에 us-west-2에서 새 prefix로 검증했습니다: CPU만(D1 loader와 copy-in 패턴 1), CPU + GPU, GPU만, 다시 CPU + GPU 모두 통과. 자세한 내용과 소요 시간은 [검증 가이드](../validation.ko.md#검증-기록)에 있습니다. 패턴 2(`submit_steps.sh`), 패턴 3(Mountpoint), 호환성 보고서는 이번 검증에서 다시 실행하지 않았습니다.
 
 ## 다음 단계
 

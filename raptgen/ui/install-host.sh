@@ -14,6 +14,9 @@ UI_REPO=https://github.com/hmdlab/RaptGen-UI.git
 UI_COMMIT=13cad83859dc9eac39383a00882c17c82a4cdb37
 COMPOSE_VERSION=v2.40.3
 COMPOSE_SHA256=dba9d98e1ba5bfe11d88c99b9bd32fc4a0624a30fafe68eea34d61a3e42fd372
+# docker compose build needs buildx 0.17+; the Amazon Linux 2023 docker package does not ship it.
+BUILDX_VERSION=v0.39.1
+BUILDX_SHA256=903090816da68f8bc1a2ff5346dd163a5adacfce4548d003c75df42cd47a9bf4
 INSTALL_DIR=/opt/raptgen-ui
 PORT=18042
 
@@ -23,6 +26,10 @@ UI_BIND_ADDR="${UI_BIND_ADDR:-127.0.0.1}"
 APT_HTTPS="${APT_HTTPS:-0}"
 [[ "${UI_BIND_ADDR}" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || { echo "UI_BIND_ADDR must be an IPv4 address" >&2; exit 2; }
 [[ "$(id -u)" -eq 0 ]] || { echo "run as root" >&2; exit 1; }
+
+echo "== waiting for first-boot setup (cloud-init) to finish"
+# The instance user data installs docker/git/jq with dnf; a second dnf at the same time fails.
+if command -v cloud-init >/dev/null; then cloud-init status --wait >/dev/null || true; fi
 
 echo "== packages"
 command -v docker >/dev/null || dnf -y install docker
@@ -40,6 +47,18 @@ if ! docker compose version 2>/dev/null | grep -q "${COMPOSE_VERSION#v}"; then
   rm -f "${tmp}"
 fi
 docker compose version
+
+echo "== docker buildx plugin ${BUILDX_VERSION}"
+bxplugin=/usr/local/lib/docker/cli-plugins/docker-buildx
+if ! docker buildx version 2>/dev/null | grep -q "${BUILDX_VERSION}"; then
+  mkdir -p "$(dirname "${bxplugin}")"
+  tmp="$(mktemp)"
+  curl -fsSL -o "${tmp}" "https://github.com/docker/buildx/releases/download/${BUILDX_VERSION}/buildx-${BUILDX_VERSION}.linux-amd64"
+  echo "${BUILDX_SHA256}  ${tmp}" | sha256sum -c -
+  install -m 0755 "${tmp}" "${bxplugin}"
+  rm -f "${tmp}"
+fi
+docker buildx version
 
 echo "== RaptGen-UI ${UI_COMMIT}"
 mkdir -p "${INSTALL_DIR}"
@@ -76,7 +95,7 @@ UI_BIND_ADDR="${UI_BIND_ADDR}" docker compose up -d --build
 
 echo "== waiting for the UI on ${UI_BIND_ADDR}:${PORT}"
 for _ in $(seq 1 180); do
-  if curl -fsS -o /dev/null "http://${UI_BIND_ADDR}:${PORT}/api/train/device/process"; then
+  if curl -fs -o /dev/null "http://${UI_BIND_ADDR}:${PORT}/api/train/device/process"; then
     echo "RaptGen-UI is up on ${UI_BIND_ADDR}:${PORT}"
     exit 0
   fi

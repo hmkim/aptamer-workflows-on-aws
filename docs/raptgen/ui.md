@@ -47,14 +47,14 @@ You should see a VPC id and one subnet id. Deploy the host:
 ```bash
 aws cloudformation deploy --stack-name "$STACK_PREFIX-raptgen-ui" --capabilities CAPABILITY_IAM \
   --template-file raptgen/ui/ec2.yaml \
-  --parameter-overrides VpcId="$VPC_ID" PrivateSubnetId="$SUBNET_ID"
+  --parameter-overrides VpcId="$VPC_ID" PrivateSubnetId="$SUBNET_ID" NamePrefix="$STACK_PREFIX"
 
 INSTANCE_ID=$(aws cloudformation describe-stacks --stack-name "$STACK_PREFIX-raptgen-ui" \
   --query "Stacks[0].Outputs[?OutputKey=='InstanceId'].OutputValue" --output text)
 echo "$INSTANCE_ID"
 ```
 
-The host is Amazon Linux 2023, encrypted gp3 disk, IMDSv2 required, an SSM role, and egress on TCP 443 only (to `0.0.0.0/0` by default, because SSM, GitHub and the container registries need it; narrow it with the `HttpsEgressCidr` parameter if your network allows). In the EC2 console it shows no public IP. In **Systems Manager > Fleet Manager** it appears as a managed node after a minute or two. Wait for that before step 2.
+The host is Amazon Linux 2023, encrypted gp3 disk, IMDSv2 required, an SSM role, and egress on TCP 443 only (to `0.0.0.0/0` by default, because SSM, GitHub and the container registries need it; narrow it with the `HttpsEgressCidr` parameter if your network allows). In the EC2 console it shows no public IP. In **Systems Manager > Fleet Manager** it appears as a managed node after a minute or two. Wait for that before step 2. (The first-boot script may still be installing packages then; `install.sh` waits for it.)
 
 ## Step 2. Install RaptGen-UI
 
@@ -62,13 +62,13 @@ The host is Amazon Linux 2023, encrypted gp3 disk, IMDSv2 required, an SSM role,
 raptgen/ui/install.sh --instance-id "$INSTANCE_ID"
 ```
 
-The script sends one SSM command that installs the Docker Compose plugin (pinned version, checksum verified), clones RaptGen-UI at the pinned commit, applies the patches below, and runs `docker compose up -d --build`. It waits and prints the tail of the output. The first build takes 15 to 30 minutes. It ends with:
+The script sends one SSM command that waits for the first-boot setup to finish, installs the Docker Compose and Docker Buildx plugins (pinned versions, checksums verified; the Amazon Linux docker package has no Buildx, which `docker compose build` needs), clones RaptGen-UI at the pinned commit, applies the patches below, and runs `docker compose up -d --build`. It waits and prints the tail of stderr, then of stdout. The first build takes 15 to 30 minutes (12 minutes in the validation run). It ends with:
 
 ```text
 RaptGen-UI is up on 127.0.0.1:18042
 ```
 
-If your network allows only TCP 443 outbound (no port 80), add `--apt-https`. For the web option use `--bind-private-ip` instead; see [ui-web](ui-web.md).
+The host from step 1 allows outbound TCP 443 only, so `install.sh` applies the HTTPS-only apt patch by default. On a host whose network also allows port 80 you may add `--apt-http` to skip it. For the web option add `--bind-private-ip`; see [ui-web](ui-web.md).
 
 ### What the patches do
 
@@ -79,7 +79,7 @@ The upstream code at `13cad83` does not work on a cloud host as is. Three small 
 | `0001-frontend-bookworm-base.patch` | The frontend image is based on `node:20.2-slim` (Debian 11). Its security repository is gone, so the build fails with 404. | Use `node:20-bookworm-slim`. |
 | `0002-relative-api-base.patch` | The browser code calls `http://localhost:18042/api`. That only works on the host itself, not through a tunnel or a web front door. | Call the relative path `/api`. |
 | `0003-publish-on-bind-address.patch` | The port is published on all interfaces. | Publish on `${UI_BIND_ADDR:-127.0.0.1}:18042`: loopback by default. |
-| `optional/0001-https-only-apt.patch` | Only for networks that allow TCP 443 but not port 80. | apt over HTTPS with the host CA bundle (`--apt-https`). |
+| `optional/0001-https-only-apt.patch` | Networks that allow TCP 443 but not port 80, such as the `ec2.yaml` host. Applied by default; `--apt-http` skips it. | apt over HTTPS with the host CA bundle. |
 
 In the test run, the build took about 9 minutes. The images were about 5.4 GB each for backend and worker and 762 MB for the frontend.
 
@@ -144,7 +144,7 @@ Read this result correctly:
 
 | Validated on | Result |
 |---|---|
-| `TODO(validation)` | fresh-stack run of steps 1 to 4 with this repo's scripts: result and date go here |
+| 2026-11-26, us-west-2 | Steps 1, 2 and 4 passed on a fresh stack (step 4 run on the host through SSM Run Command: `ALL: PASS`, 10-epoch VAE 242 s). Step 3, the SSM port forward, was not exercised because the test workstation had no Session Manager plugin. |
 
 ## Which RaptGen version the UI contains
 

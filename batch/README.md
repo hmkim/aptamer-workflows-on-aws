@@ -108,7 +108,7 @@ done
 
 ## Upload and run
 
-All operator scripts require `AWS_REGION` and `STACK_NAME`. Pipeline and compatibility submissions also require `FRONT_PRIMER` and `BACK_PRIMER`; `TOP_CANDIDATES` defaults to `100`. The manifest must be a tab-separated file with the header and columns `round`, `accession`, `label`, `file_name`, `url`, and `md5`. The loader validates the source filename but writes each object as `R<round>_<accession>.fastq.gz`, which is the pipeline input convention. Round numbers must be contiguous from zero for the stage-array pattern.
+All operator scripts require `AWS_REGION` and `STACK_NAME`. Pipeline and compatibility submissions also require `FRONT_PRIMER` and `BACK_PRIMER`; `TOP_CANDIDATES` defaults to `100`. The manifest must be a tab-separated file with the header and columns `round`, `run_accession`, `library_name`, `file_name`, `url`, and `md5` (see `data/dra009383_manifest.tsv`). The loader validates the source filename but writes each object as `R<round>_<run_accession>.fastq.gz`, which is the pipeline input convention. Round numbers must be contiguous from zero for the stage-array pattern.
 
 For the bundled public D1 manifest, the immutable container already includes the file, so submit the loader directly:
 

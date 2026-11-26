@@ -18,6 +18,13 @@ Description: >-
 # - Public subnets give no internet access; use private subnets with a NAT route.
 # - Interface endpoints (PrivateLink) are a separate feature: they let clients in
 #   the VPC call HealthOmics APIs privately. VPC-mode runs do not need them.
+# - Five endpoint services exist (workflows-omics, storage-omics,
+#   control-storage-omics, analytics-omics, tags-omics), but not every Region
+#   offers all of them. Check before enabling one:
+#     aws ec2 describe-vpc-endpoint-services --region <REGION> \
+#       --query 'ServiceNames[?contains(@, `omics`)]' --output text
+#   (2026-11: us-east-1, us-west-2 and eu-west-1 list all five; ap-northeast-2
+#   lists only workflows-omics, analytics-omics and tags-omics.)
 
 Parameters:
   VpcId:
@@ -44,7 +51,34 @@ Parameters:
     Type: String
     Default: 'false'
     AllowedValues: ['true', 'false']
-    Description: Create PrivateLink interface endpoints for the HealthOmics APIs (hourly charge per endpoint and AZ).
+    Description: >-
+      Create the PrivateLink interface endpoints selected by the Endpoint* parameters
+      (hourly charge per endpoint and AZ).
+  EndpointWorkflows:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: With CreateInterfaceEndpoints, create com.amazonaws.<region>.workflows-omics (workflow and run APIs).
+  EndpointStorage:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: With CreateInterfaceEndpoints, create storage-omics (sequence store data plane). Not in every Region.
+  EndpointControlStorage:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: With CreateInterfaceEndpoints, create control-storage-omics (sequence/reference store control plane). Not in every Region.
+  EndpointAnalytics:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: With CreateInterfaceEndpoints, create analytics-omics (variant and annotation stores).
+  EndpointTags:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: With CreateInterfaceEndpoints, create tags-omics (tagging APIs).
   ProjectTag:
     Type: String
     Default: aptamer-workflows
@@ -54,6 +88,11 @@ Conditions:
   MakeConfiguration: !Equals [!Ref CreateConfiguration, 'true']
   HasConfigurationName: !Not [!Equals [!Ref ConfigurationName, '']]
   MakeEndpoints: !Equals [!Ref CreateInterfaceEndpoints, 'true']
+  MakeWorkflowsEndpoint: !And [!Condition MakeEndpoints, !Equals [!Ref EndpointWorkflows, 'true']]
+  MakeStorageEndpoint: !And [!Condition MakeEndpoints, !Equals [!Ref EndpointStorage, 'true']]
+  MakeControlStorageEndpoint: !And [!Condition MakeEndpoints, !Equals [!Ref EndpointControlStorage, 'true']]
+  MakeAnalyticsEndpoint: !And [!Condition MakeEndpoints, !Equals [!Ref EndpointAnalytics, 'true']]
+  MakeTagsEndpoint: !And [!Condition MakeEndpoints, !Equals [!Ref EndpointTags, 'true']]
 
 Resources:
   RunSecurityGroup:
@@ -105,7 +144,7 @@ Resources:
         - {Key: Project, Value: !Ref ProjectTag}
   WorkflowsEndpoint:
     Type: AWS::EC2::VPCEndpoint
-    Condition: MakeEndpoints
+    Condition: MakeWorkflowsEndpoint
     Properties:
       VpcEndpointType: Interface
       VpcId: !Ref VpcId
@@ -115,7 +154,7 @@ Resources:
       PrivateDnsEnabled: true
   StorageEndpoint:
     Type: AWS::EC2::VPCEndpoint
-    Condition: MakeEndpoints
+    Condition: MakeStorageEndpoint
     Properties:
       VpcEndpointType: Interface
       VpcId: !Ref VpcId
@@ -125,7 +164,7 @@ Resources:
       PrivateDnsEnabled: true
   ControlStorageEndpoint:
     Type: AWS::EC2::VPCEndpoint
-    Condition: MakeEndpoints
+    Condition: MakeControlStorageEndpoint
     Properties:
       VpcEndpointType: Interface
       VpcId: !Ref VpcId
@@ -135,7 +174,7 @@ Resources:
       PrivateDnsEnabled: true
   AnalyticsEndpoint:
     Type: AWS::EC2::VPCEndpoint
-    Condition: MakeEndpoints
+    Condition: MakeAnalyticsEndpoint
     Properties:
       VpcEndpointType: Interface
       VpcId: !Ref VpcId
@@ -145,7 +184,7 @@ Resources:
       PrivateDnsEnabled: true
   TagsEndpoint:
     Type: AWS::EC2::VPCEndpoint
-    Condition: MakeEndpoints
+    Condition: MakeTagsEndpoint
     Properties:
       VpcEndpointType: Interface
       VpcId: !Ref VpcId
@@ -167,5 +206,16 @@ Outputs:
     Value: !GetAtt OmicsConfiguration.Arn
   InterfaceEndpointsEnabled:
     Value: !Ref CreateInterfaceEndpoints
+  InterfaceEndpointServices:
+    Value: !If
+      - MakeEndpoints
+      - !Join
+        - ','
+        - - !If [MakeWorkflowsEndpoint, workflows-omics, !Ref 'AWS::NoValue']
+          - !If [MakeStorageEndpoint, storage-omics, !Ref 'AWS::NoValue']
+          - !If [MakeControlStorageEndpoint, control-storage-omics, !Ref 'AWS::NoValue']
+          - !If [MakeAnalyticsEndpoint, analytics-omics, !Ref 'AWS::NoValue']
+          - !If [MakeTagsEndpoint, tags-omics, !Ref 'AWS::NoValue']
+      - none
   ValidationStatus:
     Value: not yet validated

@@ -12,7 +12,7 @@ You reach it through an SSM port forward.
 |---|---|
 | `ec2.yaml` | host: AL2023, `m7i.2xlarge` default, encrypted gp3 200 GiB, IMDSv2 required (hop limit 1), SSM role, egress TCP 443 only. Needs `CAPABILITY_IAM`. |
 | `install.sh` | sends `install-host.sh` plus the patches through SSM Run Command and waits (15-30 min first build) |
-| `install-host.sh` | on the host: Docker Compose plugin (v2.40.3, sha256 checked), RaptGen-UI at the pinned commit, patches, `docker compose up -d --build` |
+| `install-host.sh` | on the host: waits for cloud-init, Docker Compose plugin (v2.40.3) and Docker Buildx plugin (v0.39.1), sha256 checked, RaptGen-UI at the pinned commit, patches, `docker compose up -d --build` |
 | `connect.sh` | `aws ssm start-session` port forward to `localhost:18042` |
 | `tests/e2e_api.py` | API end-to-end test (Viewer, VAE training, GMM, Bayesian optimization) |
 | `patches/` | unified diffs against RaptGen-UI `13cad83` |
@@ -24,7 +24,7 @@ You reach it through an SSM port forward.
 | `0001-frontend-bookworm-base.patch` | `node:20.2-slim` (Debian bullseye) fails: its security repository is gone. Use `node:20-bookworm-slim`. |
 | `0002-relative-api-base.patch` | upstream calls `http://localhost:18042/api` from the browser, which only works on the host itself. Use `/api`. |
 | `0003-publish-on-bind-address.patch` | publish the frontend on `${UI_BIND_ADDR:-127.0.0.1}:18042` instead of all interfaces. Set the instance private IP for the CloudFront option. |
-| `optional/0001-https-only-apt.patch` | HTTPS apt plus the host CA bundle, only for networks that allow TCP 443 alone (`install.sh --apt-https`). |
+| `optional/0001-https-only-apt.patch` | HTTPS apt plus the host CA bundle, for networks that allow TCP 443 alone. The `ec2.yaml` host is one, so `install.sh` applies it by default (`--apt-http` skips it). |
 
 ## Use
 

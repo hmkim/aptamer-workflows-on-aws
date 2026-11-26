@@ -7,12 +7,15 @@ source "$(dirname -- "${BASH_SOURCE[0]}")/lib/common.sh"
 usage() {
   cat >&2 <<'EOF'
 Usage: scripts/setup-all.sh [--prefix <name>] [--region <region>] [--cpu] [--gpu]
-                            [--build-image] [--vpc] [--interface-endpoints]
+                            [--build-image] [--yes] [--vpc] [--interface-endpoints]
+                            [--endpoint-services <list>]
 
-  --cpu/--gpu, --build-image          passed to setup-batch.sh (default: CPU only)
+  --cpu/--gpu, --build-image, --yes   passed to setup-batch.sh (default: CPU only; --yes allows
+                                      turning off compute that an existing stack has on)
   --mountpoint-version <v>, --mountpoint-sha256 <h>, --gpu-max-vcpus <n>, --gpu-instance-types <l>
                                       passed to setup-batch.sh
-  --vpc, --interface-endpoints        passed to setup-healthomics.sh (VPC mode is not yet validated)
+  --vpc, --interface-endpoints, --endpoint-services <list>
+                                      passed to setup-healthomics.sh (VPC mode is not yet validated)
 EOF
 }
 
@@ -21,10 +24,11 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --prefix) PREFIX=${2:?}; shift 2 ;;
     --region) REGION=${2:?}; shift 2 ;;
-    --cpu|--gpu|--build-image) batch_args+=("$1"); shift ;;
+    --cpu|--gpu|--build-image|--yes) batch_args+=("$1"); shift ;;
     --mountpoint-version|--mountpoint-sha256|--gpu-max-vcpus|--gpu-instance-types)
       batch_args+=("$1" "${2:?}"); shift 2 ;;
     --vpc|--interface-endpoints) ho_args+=("$1"); shift ;;
+    --endpoint-services) ho_args+=("$1" "${2:?}"); shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) usage; die "unknown option: $1" ;;
   esac

@@ -8,9 +8,11 @@ Description: >-
 Parameters:
   NamePrefix:
     Type: String
-    Default: raptgen
+    Default: aptamer-workflows-raptgen
     AllowedPattern: "^[a-zA-Z][a-zA-Z0-9_-]{0,40}$"
-    Description: Job definitions are named <NamePrefix>-train-cpu, -train-gpu, -bench-cpu, -bench-gpu.
+    Description: >-
+      Job definitions are named <NamePrefix>-train-cpu, -train-gpu, -bench-cpu, -bench-gpu.
+      Use <stack-prefix>-raptgen; the submit scripts default to that name.
   CpuImageUri:
     Type: String
     Default: ""

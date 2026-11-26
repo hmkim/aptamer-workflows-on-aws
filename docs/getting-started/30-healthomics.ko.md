@@ -103,7 +103,7 @@ export RUN_NAME="d1-$(date -u +%Y%m%d%H%M)"
 healthomics/orchestrate.sh run
 ```
 
-`id`, `arn`, `status`(`PENDING`), `name`이 담긴 JSON이 보여야 합니다. 기본값: `--networking-mode RESTRICTED`, 동적 실행 스토리지, `RETENTION_MODE=RETAIN`, `LOG_LEVEL=ALL`, 출력 위치 `s3://<BucketName>/outputs/<RUN_NAME>/`. 모든 변수는 [healthomics/README.ko.md](../../healthomics/README.ko.md)를 보세요.
+`id`, `arn`, `status`(`PENDING`), `name`, `outputUri`가 담긴 JSON이 보여야 합니다. 기본값: `--networking-mode RESTRICTED`, 동적 실행 스토리지, `RETENTION_MODE=RETAIN`, `LOG_LEVEL=ALL`, 출력 위치 `s3://<BucketName>/outputs/<RUN_NAME>/`. 모든 변수는 [healthomics/README.ko.md](../../healthomics/README.ko.md)를 보세요.
 
 ## 7단계: 실행 확인
 
@@ -117,7 +117,7 @@ healthomics/orchestrate.sh status
 aws s3 ls "s3://$BUCKET_NAME/outputs/$RUN_NAME/" --region "$AWS_REGION" --recursive
 ```
 
-실행 출력 폴더 아래에서 `enrich/top_candidates.tsv`를 찾을 수 있어야 합니다. 다른 실행과 비교할 때는 [검증 가이드](../validation.ko.md)를 쓰세요.
+실행 출력 폴더 아래에서 `<run id>/pubdir/enrich/top_candidates.tsv`를 찾을 수 있어야 합니다 (HealthOmics가 실행 ID와 `pubdir/`를 붙입니다). 옆에 `qc/`, `trimmed/`, `counts/`, `fold/`, `checksums.sha256`도 있습니다. 검증 실행에서는 정렬한 SHA-256이 같은 D1 데이터의 Batch copy-in 결과와 같았습니다. 다른 실행과 비교할 때는 [검증 가이드](../validation.ko.md)를 쓰세요.
 
 ## 선택: VPC 네트워킹 모드 (아직 검증되지 않음)
 
@@ -138,7 +138,7 @@ VPC 구성 요소를 배포합니다. 공유 네트워크가 없으면 함께 �
 scripts/setup-healthomics.sh --prefix "$PREFIX" --region "$AWS_REGION" --vpc
 ```
 
-옵션: `--configuration-name <name>`(기본 `<prefix>-vpc`), `--interface-endpoints`(PrivateLink endpoint 생성), `--configuration-by-script`(CloudFormation 대신 `healthomics/vpc/omics-vpc-configuration.sh`로 configuration 생성).
+옵션: `--configuration-name <name>`(기본 `<prefix>-vpc`), `--interface-endpoints`(PrivateLink endpoint 생성, 기본은 `workflows-omics`만), `--endpoint-services <list>`(`workflows-omics,storage-omics,control-storage-omics,analytics-omics,tags-omics` 중 선택, 스크립트가 먼저 리전 지원 여부를 확인), `--configuration-by-script`(CloudFormation 대신 `healthomics/vpc/omics-vpc-configuration.sh`로 configuration 생성).
 
 `HealthOmics VPC networking mode is NOT YET VALIDATED in this repository`가 보이고, `<prefix>-healthomics-vpc` 스택이 `CREATE_COMPLETE`가 되고, configuration이 `ACTIVE`가 되어야 합니다. 이 스택은 HTTPS(TCP 443) egress만 있고 ingress는 없는 run security group을 추가합니다. configuration을 확인합니다.
 
@@ -156,7 +156,7 @@ healthomics/orchestrate.sh run --networking-mode VPC --configuration-name "$PREF
 
 ## 검증 기록
 
-> TODO(validation): 3차 작업에서 `RESTRICTED` 모드의 날짜, 리전, 결과를 여기와 [검증 가이드](../validation.ko.md#검증-기록)에 채웁니다. VPC 모드는 테스트할 때까지 아직 검증되지 않은 것으로 표시합니다.
+`RESTRICTED` 모드는 2026-11-26에 us-west-2에서 새 prefix로 검증했습니다. D1으로 2~7단계 통과, 결과가 Batch copy-in 결과와 같았습니다. 자세한 내용은 [검증 가이드](../validation.ko.md#검증-기록)에 있습니다. VPC 모드는 아직 검증되지 않았습니다.
 
 ## 다음 단계
 

@@ -18,7 +18,7 @@ Technical reference for the files used here: [`raptgen/README.md`](../../raptgen
    | CPU and GPU | `scripts/setup-batch.sh --cpu --gpu` | `--device cpu` and `--device gpu` |
    | GPU only | `scripts/setup-batch.sh --gpu` | `--device gpu` |
 
-   The stack is called `<prefix>-batch` (default prefix `aptamer-workflows`). It creates the ECR repositories `raptgen-cpu` and `raptgen-gpu`, the job role and the log group that this guide uses.
+   The stack is called `<prefix>-batch` (default prefix `aptamer-workflows`). It creates the ECR repositories `<prefix>-batch-raptgen-cpu` and `<prefix>-batch-raptgen-gpu` (both always, whatever compute you enabled), the job role and the log group that this guide uses.
 
 2. **GPU quota (GPU path only).** GPU instances (`g5`, `g6`) count against your **Running On-Demand G and VT instances** vCPU quota, which is 0 on many new accounts. Check it in Service Quotas before you enable the GPU compute environment. A GPU job stays `RUNNABLE` forever if the quota is too low.
 
@@ -50,12 +50,12 @@ You should see, at the end of each run:
 
 ```text
 image digest URI (use this in raptgen/batch/jobs.yaml parameters):
-<ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/raptgen-cpu@sha256:<64 hex characters>
+<ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/<prefix>-batch-raptgen-cpu@sha256:<64 hex characters>
 ```
 
 Copy the two URIs (or only the one you built). They are used in step 2. To build without pushing, add `--no-push`.
 
-If the script says the stack has no `RaptgenGpuRepositoryUri` output, the GPU compute was not enabled on the Batch stack. Re-run `scripts/setup-batch.sh --cpu --gpu`.
+Both repositories exist even when GPU compute is off, so you can build the GPU image first and enable GPU later. A GPU job needs the GPU queue: `submit-train.sh --device gpu` stops with `The gpu queue is disabled` until you run `scripts/setup-batch.sh --cpu --gpu` (or `--gpu`). In the validation run the CPU build took about 2 minutes and the GPU build (CUDA wheels) about 7 minutes on the validation workstation.
 
 ## Step 2. Deploy the job definitions
 
@@ -77,6 +77,7 @@ Deploy. Pass only the image URI you built; leave the other one out and its job d
 aws cloudformation deploy --stack-name "$STACK_PREFIX-raptgen-jobs" \
   --template-file raptgen/batch/jobs.yaml \
   --parameter-overrides \
+    NamePrefix="$STACK_PREFIX-raptgen" \
     CpuImageUri=<cpu-digest-uri> \
     GpuImageUri=<gpu-digest-uri> \
     JobRoleArn="$JOB_ROLE" LogGroupName="$LOG_GROUP"
@@ -86,10 +87,10 @@ You should see `Successfully created/updated stack`. In the Batch console, **Job
 
 | Job definition | Does | Needs |
 |---|---|---|
-| `raptgen-train-cpu` | train + encode on CPU | `CpuImageUri` |
-| `raptgen-train-gpu` | train + encode on 1 GPU | `GpuImageUri` |
-| `raptgen-bench-cpu` | timing benchmark on CPU | `CpuImageUri` |
-| `raptgen-bench-gpu` | timing benchmark on 1 GPU, then on CPU of the same instance | `GpuImageUri` |
+| `<prefix>-raptgen-train-cpu` | train + encode on CPU | `CpuImageUri` |
+| `<prefix>-raptgen-train-gpu` | train + encode on 1 GPU | `GpuImageUri` |
+| `<prefix>-raptgen-bench-cpu` | timing benchmark on CPU | `CpuImageUri` |
+| `<prefix>-raptgen-bench-gpu` | timing benchmark on 1 GPU, then on CPU of the same instance | `GpuImageUri` |
 
 Every container runs as a non-root user (UID 10001) with a read-only root file system, a 2 GiB tmpfs `/tmp`, and no inbound network port. Logs go to the Batch stack log group. Image URIs are pinned by digest, not by tag.
 
@@ -101,10 +102,10 @@ raptgen/batch/submit-train.sh --device cpu
 raptgen/batch/submit-train.sh --device gpu
 ```
 
-Without `--input`, the script uses the RaptGen paper dataset A that ships inside both images (`data/real/A_4R.fastq`, 80,864 reads, public). Defaults: 50 epochs, `--min-count 2` (3,043 unique sequences). To use your own reads, upload a FASTQ to a bucket the job role can read (the work bucket works) and pass it:
+Without `--input`, the script uses the RaptGen paper dataset A that ships inside both images (`data/real/A_4R.fastq`, 80,864 reads, public). Defaults: 50 epochs, `--min-count 2` (3,043 unique sequences). To use your own reads, upload a FASTQ below `runs/` of the work bucket (the job role reads and writes only that prefix) and pass it:
 
 ```bash
-raptgen/batch/submit-train.sh --device cpu --input s3://<WORK_BUCKET>/my-reads.fastq --epochs 100
+raptgen/batch/submit-train.sh --device cpu --input s3://<WORK_BUCKET>/runs/inputs/my-reads.fastq --epochs 100
 ```
 
 | Option | Meaning |
@@ -114,7 +115,7 @@ raptgen/batch/submit-train.sh --device cpu --input s3://<WORK_BUCKET>/my-reads.f
 | `--epochs N` | training epochs, default 50 |
 | `--min-count N` | keep sequences seen at least N times, default 2. Min-count 1 keeps more sequences (38,513 unique for dataset A) and is about 10 times slower per epoch. |
 | `--threshold N` | passed to the upstream training script, default 50 |
-| `--stack-prefix`, `--jobdef-prefix` | defaults `aptamer-workflows` and `raptgen` |
+| `--stack-prefix`, `--jobdef-prefix` | defaults `aptamer-workflows` and `<stack-prefix>-raptgen` (the `NamePrefix` above) |
 
 You should see:
 
@@ -122,7 +123,7 @@ You should see:
 submitted train-cpu-<timestamp>
   job id : <JOB_ID>
   queue  : <queue name>
-  output : s3://<WORK_BUCKET>/raptgen/train-cpu-<timestamp>/
+  output : s3://<WORK_BUCKET>/runs/raptgen/train-cpu-<timestamp>/
 check with: raptgen/batch/status.sh <JOB_ID>
 ```
 
@@ -146,7 +147,7 @@ Status moves `SUBMITTED` → `RUNNABLE` → `STARTING` → `RUNNING` → `SUCCEE
 `status.sh` also prints the S3 location of the results. When the job has `SUCCEEDED`, a training job has written:
 
 ```bash
-aws s3 ls s3://<WORK_BUCKET>/raptgen/train-cpu-<timestamp>/
+aws s3 ls s3://<WORK_BUCKET>/runs/raptgen/train-cpu-<timestamp>/
 ```
 
 | File | Content |
@@ -162,7 +163,7 @@ Benchmark jobs write their JSON lines to the job's CloudWatch log stream. `statu
 Download everything for a run:
 
 ```bash
-aws s3 cp --recursive s3://<WORK_BUCKET>/raptgen/train-cpu-<timestamp>/ ./raptgen-run/
+aws s3 cp --recursive s3://<WORK_BUCKET>/runs/raptgen/train-cpu-<timestamp>/ ./raptgen-run/
 ```
 
 ## Good to know
@@ -176,6 +177,6 @@ aws s3 cp --recursive s3://<WORK_BUCKET>/raptgen/train-cpu-<timestamp>/ ./raptge
 
 | Item | Status |
 |---|---|
-| Fresh-stack run of this guide (CPU, GPU, both) | `TODO(validation)`: results are added after the validation run |
+| Fresh-stack run of this guide (CPU, GPU, both) | Passed on 2026-11-26 in us-west-2: both images, job definitions, 3-epoch training on CPU and GPU, `submit-bench.sh --device both --epochs 2`, `status.sh`, outputs in S3. See [validation](../validation.md#validated-on). |
 
 Next: [CPU vs GPU benchmark](benchmark.md) | [Index](README.md)

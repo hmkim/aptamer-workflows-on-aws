@@ -51,7 +51,7 @@ Next.js 이미지 최적화 경로 `/_next/image`는 모두에게 막혀 있습�
   raptgen/ui/install.sh --instance-id "$INSTANCE_ID" --bind-private-ip
   ```
 
-  UI가 이미 도는 호스트에서 `install.sh`를 다시 실행하면 checkout을 고정된 commit으로 되돌리고, 패치를 다시 적용하고, 다시 빌드하므로 bind 주소가 바뀝니다 (이 저장소에서 다시 테스트하지는 않았습니다). 이후 SSM 터널에도 private IP가 필요합니다. `raptgen/ui/connect.sh --instance-id "$INSTANCE_ID" --remote-host <PrivateIp>` (`<prefix>-raptgen-ui` 스택의 output `PrivateIp`).
+  UI가 이미 도는 호스트에서 `install.sh`를 다시 실행하면 checkout을 고정된 commit으로 되돌리고, 패치를 다시 적용하고, 다시 빌드하므로 bind 주소가 바뀝니다 (2026-11-26 검증: 이미지 캐시가 있는 호스트에서 약 1분). 이후 SSM 터널에도 private IP가 필요합니다. `raptgen/ui/connect.sh --instance-id "$INSTANCE_ID" --remote-host <PrivateIp>` (`<prefix>-raptgen-ui` 스택의 output `PrivateIp`).
 - Node.js 22 이상과 npm.
 - **us-east-1**에 bootstrap된 AWS CDK (Lambda@Edge는 us-east-1에 있어야 합니다): `npx cdk bootstrap aws://<ACCOUNT_ID>/us-east-1`.
 - UI 호스트 스택 `<prefix>-raptgen-ui`의 output `InstanceArn`, `PrivateDnsName`, `SecurityGroupId`.
@@ -59,6 +59,7 @@ Next.js 이미지 최적화 경로 `/_next/image`는 모두에게 막혀 있습�
 
 ```bash
 export STACK_PREFIX=aptamer-workflows
+export UI_WEB_STACK=RaptGenUiWeb      # gate 스택 이름. 두 번째 gate를 만들려면 새 이름을 쓰세요
 UI_OUT() { aws cloudformation describe-stacks --stack-name "$STACK_PREFIX-raptgen-ui" \
   --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue" --output text; }
 INSTANCE_ARN=$(UI_OUT InstanceArn); PRIVATE_DNS=$(UI_OUT PrivateDnsName); UI_SG=$(UI_OUT SecurityGroupId)
@@ -83,9 +84,11 @@ npm run deploy -- \
   -c cognitoDomainPrefix=<unique-prefix>
 ```
 
-`originPort`의 기본값은 18042입니다. `cognitoDomainPrefix`는 Region 안에서 유일해야 하고 `aws`, `amazon`, `cognito`를 포함하면 안 됩니다. 생략하면 계정에서 계산한 안정적인 `raptgen-ui-<16진수 10자리>` 값이 쓰입니다. gate는 항상 us-east-1에 만들어집니다. 계정, Region, 인스턴스, 도메인은 코드에 박혀 있지 않고 AWS CLI 설정과 위의 context 값에서 옵니다.
+`npm run deploy`는 먼저 `UI_WEB_STACK`(기본값 `RaptGenUiWeb`)에 지정한 스택용 edge bundle을 빌드한 뒤 그 스택을 배포합니다. 다른 이름은 스택 이름에서 정해집니다. 기본 스택의 시크릿은 `/raptgen-ui-web/` 아래에, 다른 이름이면 `/<소문자 스택 이름>/` 아래에 있습니다 (예: `/my-ui-web/edge-auth`). Cognito user pool과 app client도 같은 이름을 씁니다. 같은 계정에 독립된 gate를 하나 더 만들려면 이 페이지의 모든 명령에서 새 `UI_WEB_STACK` 값을 쓰세요. `-c stackName=<name>`으로 줄 수도 있으며, 둘 다 주면 값이 같아야 합니다.
 
-CloudFormation 스택 `RaptGenUiWeb`이 `CREATE_COMPLETE`가 되고 `SiteUrl`, `UserPoolId`, `CognitoDomain` 같은 output이 보여야 합니다. CloudFront 배포에는 몇 분이 걸릴 수 있습니다.
+`originPort`의 기본값은 18042입니다. `cognitoDomainPrefix`는 Region 안에서 유일해야 하고 `aws`, `amazon`, `cognito`를 포함하면 안 됩니다. 생략하면 계정(기본이 아닌 이름이면 스택 이름도)에서 계산한 안정적인 값이 쓰입니다. Lambda@Edge와 그 설정 시크릿이 us-east-1에 있어야 하므로 gate는 항상 us-east-1에 만들어집니다. 계정, 인스턴스, 도메인은 코드에 박혀 있지 않고 AWS CLI 설정과 위의 context 값에서 옵니다.
+
+CloudFormation 스택 `$UI_WEB_STACK`이 `CREATE_COMPLETE`가 되고 `SiteUrl`, `UserPoolId`, `CognitoDomain`, `UserSecretPrefix` 같은 output이 보여야 합니다. 첫 배포는 약 10분 걸립니다 (CloudFront와 Lambda@Edge).
 
 ### 2단계. 익명 접근이 거부되는지 검증
 
@@ -93,20 +96,24 @@ CloudFormation 스택 `RaptGenUiWeb`이 `CREATE_COMPLETE`가 되고 `SiteUrl`, `
 scripts/verify-gate.sh
 ```
 
-모든 줄이 `OK`이고 종료 코드가 0이어야 합니다. 모든 페이지와 API 경로(모든 method)가 **이** pool의 Cognito 로그인으로 redirect되는지, 위조한 OAuth callback과 위조한 토큰 쿠키가 거부되는지, `/logout`이 Cognito logout으로 가는지 확인합니다. `FAIL` 줄이 있으면 멈추고 3단계로 넘어가지 마세요.
+스크립트는 `UI_WEB_STACK`(기본값 `RaptGenUiWeb`)을 읽고 먼저 `gate stack: <name> (us-east-1)`을 출력합니다. 모든 줄이 `OK`이고 종료 코드가 0이어야 합니다. 모든 페이지와 API 경로(모든 method)가 **이** pool의 Cognito 로그인으로 redirect되는지, 위조한 OAuth callback과 위조한 토큰 쿠키가 거부되는지, `/logout`이 Cognito logout으로 가는지 확인합니다. `FAIL` 줄이 있으면 멈추고 3단계로 넘어가지 마세요.
 
 ### 3단계. origin을 CloudFront에만 열기
 
 UI 호스트에는 인바운드 규칙이 없습니다. 이 단계는 CloudFront VPC origin 서비스 보안 그룹만 18042 포트에 닿게 하는 규칙 하나를 추가합니다. 그 그룹은 UI 호스트의 VPC에 있습니다 (CloudFront가 만들며 이름은 `CloudFront-VPCOrigins-Service-SG`).
 
 ```bash
+VPC_ID=$(aws cloudformation describe-stacks --stack-name "$STACK_PREFIX-network" \
+  --query "Stacks[0].Outputs[?OutputKey=='VpcId'].OutputValue" --output text)
 CF_SG=$(aws ec2 describe-security-groups \
-  --filters Name=group-name,Values=CloudFront-VPCOrigins-Service-SG Name=vpc-id,Values=<VpcId> \
+  --filters Name=group-name,Values=CloudFront-VPCOrigins-Service-SG Name=vpc-id,Values="$VPC_ID" \
   --query 'SecurityGroups[0].GroupId' --output text)
 aws cloudformation deploy --stack-name "$STACK_PREFIX-raptgen-ui-origin-access" \
   --template-file origin-access.yaml \
   --parameter-overrides UiSecurityGroupId="$UI_SG" CloudFrontVpcOriginSecurityGroupId="$CF_SG"
 ```
+
+`CF_SG`는 `sg-...` 값이어야 합니다. `None`이면 CloudFront가 아직 VPC origin을 만들고 있는 것이니 몇 분 뒤 다시 실행하세요.
 
 ### 4단계. 사용자 추가
 
@@ -115,11 +122,13 @@ scripts/add-user.sh <username> full        # 학습과 삭제 가능
 scripts/add-user.sh <username> readonly    # 보기만 가능
 ```
 
-스크립트는 임의의 영구 비밀번호로 Cognito 사용자를 만들고, 비밀번호를 us-east-1의 Secrets Manager `/raptgen-ui-web/users/<username>`에 저장합니다. 비밀번호를 출력하지 않습니다. 읽으려면:
+두 스크립트 모두 `UI_WEB_STACK`을 읽습니다. 스크립트는 임의의 영구 비밀번호로 Cognito 사용자를 만들고, 비밀번호를 us-east-1의 Secrets Manager에 스택 output `UserSecretPrefix` + 사용자 이름으로 저장합니다 (기본 스택이면 `/raptgen-ui-web/users/<username>`). 비밀번호를 출력하지 않습니다. 읽으려면:
 
 ```bash
+SECRET_PREFIX=$(aws cloudformation describe-stacks --region us-east-1 --stack-name "$UI_WEB_STACK" \
+  --query "Stacks[0].Outputs[?OutputKey=='UserSecretPrefix'].OutputValue" --output text)
 aws secretsmanager get-secret-value --region us-east-1 \
-  --secret-id /raptgen-ui-web/users/<username> --query SecretString --output text
+  --secret-id "${SECRET_PREFIX}<username>" --query SecretString --output text
 ```
 
 각 사람에게는 본인 자격 증명만 안전한 방법으로 전달하세요. 1단계의 `SiteUrl`을 열어 로그인합니다.
@@ -151,7 +160,7 @@ FASTQ=<RAPT1_4R.fastq 경로> SHOT_DIR=./shots npm run e2e
 
 | 검증일 | 결과 |
 |---|---|
-| `TODO(validation)` | 이 저장소로 1~4단계를 새로 배포하고 verify-gate와 역할 테스트 실행: 결과와 날짜를 여기에 추가 |
+| 2026-11-26, us-east-1 gate, us-west-2 호스트 | 기본이 아닌 `UI_WEB_STACK`으로 1~4단계를 새로 배포: origin을 열기 전 `verify-gate.sh` 15/15 OK, `e2e-roles.ts` `E2E PASS`, 이후 사용자와 gate 삭제. |
 
 ## 접속 닫기
 
@@ -165,6 +174,13 @@ FASTQ=<RAPT1_4R.fastq 경로> SHOT_DIR=./shots npm run e2e
 
 2. **또는 CloudFront distribution 비활성화** (CloudFront 콘솔).
 3. **사용자 한 명 삭제:** `aws cognito-idp admin-delete-user --region us-east-1 --user-pool-id <UserPoolId> --username <name>`.
-4. **전부 삭제:** `raptgen/ui-web`에서 `npx cdk destroy`를 실행하면 gate가 지워집니다. user pool, 로그 버킷, 사용자 시크릿은 **보존**되므로 직접 지우세요.
+4. **전부 삭제:** origin-access 스택(1번)을 지운 뒤 gate 스택을 지웁니다.
+
+   ```bash
+   aws cloudformation delete-stack --region us-east-1 --stack-name "$UI_WEB_STACK"
+   aws cloudformation wait stack-delete-complete --region us-east-1 --stack-name "$UI_WEB_STACK"
+   ```
+
+   CloudFront는 distribution이 지워진 뒤에도 한동안 Lambda@Edge 복제본을 유지하므로, 첫 삭제는 edge 함수에서 `DELETE_FAILED`로 끝날 수 있습니다. 기다린 뒤(검증 실행에서는 약 25분 뒤 재시도로 성공, 더 걸릴 수도 있음) 스택을 다시 지우세요. user pool(삭제 보호 켜짐), 로그 버킷, 사용자 시크릿은 **보존**되므로 확인한 뒤 직접 지우세요 ([정리](../getting-started/90-cleanup.ko.md) 참고).
 
 돌아가기: [사설 EC2에서 RaptGen-UI 실행](ui.ko.md) | [목차](README.ko.md)

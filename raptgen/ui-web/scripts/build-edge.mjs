@@ -1,8 +1,12 @@
 // Bundle the Lambda@Edge auth function into edge/dist/index.js.
 import { build } from 'esbuild';
-import { mkdirSync, rmSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { DEFAULT_STACK_NAME, checkStackName, edgeSecretId } from '../lib/names.ts';
 
-export const SECRET_ID = '/raptgen-ui-web/edge-auth';
+// The secret ID is baked into the bundle (Lambda@Edge has no environment variables), so the
+// bundle is built for one stack: UI_WEB_STACK (default RaptGenUiWeb). bin/app.ts checks it.
+const stackName = checkStackName(process.env.UI_WEB_STACK || DEFAULT_STACK_NAME);
+export const SECRET_ID = edgeSecretId(stackName);
 
 rmSync('edge/dist', { recursive: true, force: true });
 mkdirSync('edge/dist', { recursive: true });
@@ -18,4 +22,5 @@ await build({
   define: { __SECRET_ID__: JSON.stringify(SECRET_ID) },
   legalComments: 'none',
 });
-console.log('edge bundle written to edge/dist/index.js');
+writeFileSync('edge/dist/build-info.json', JSON.stringify({ stackName, secretId: SECRET_ID }));
+console.log(`edge bundle for stack ${stackName} (secret ${SECRET_ID}) written to edge/dist/index.js`);

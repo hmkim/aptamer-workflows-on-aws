@@ -4,8 +4,11 @@
 #  - the OAuth callback with a forged code/state must be rejected without setting tokens
 #  - /logout must redirect to the Cognito logout
 #  - a forged token cookie must not get through
+# Stack: UI_WEB_STACK (default RaptGenUiWeb), Region us-east-1 (see scripts/names.sh).
 set -euo pipefail
-STACK=RaptGenUiWeb; REGION=us-east-1
+# shellcheck source=names.sh
+source "$(dirname -- "${BASH_SOURCE[0]}")/names.sh"
+echo "gate stack: $STACK ($REGION)"
 out() { aws cloudformation describe-stacks --region "$REGION" --stack-name "$STACK" \
   --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue" --output text; }
 SITE=$(out SiteUrl); COGNITO=$(out CognitoDomain); CID=$(out UserPoolClientId)

@@ -190,7 +190,9 @@ process QC_MERGE {
     script:
     '''
     set -o pipefail
-    first=$(find per_round -type f -name '*.stats.tsv' | LC_ALL=C sort -V | head -n 1)
+    # Staged inputs may be symbolic links (HealthOmics, Nextflow symlink staging): use a glob, not find -type f.
+    first=$(printf '%s\\n' per_round/*.stats.tsv | LC_ALL=C sort -V | head -n 1)
+    test -s "$first"
     head -n 1 "$first" > stats.tsv
     tail -q -n +2 per_round/*.stats.tsv | LC_ALL=C sort -k1,1V >> stats.tsv
     '''
@@ -277,7 +279,7 @@ process ENRICH {
       --counts-dir counts \\
       --output-dir enrich_out \\
       --counts-pattern 'R*.tsv' \\
-      --round-regex '^R([0-9]+)$' \\
+      --round-regex '^R([0-9]+)\$' \\
       --top-candidates ${params.top_n} \\
       --pseudocount-rpm ${params.pseudocount_rpm}
     mv enrich_out/top_candidates.tsv top_candidates.tsv
@@ -298,7 +300,8 @@ process FOLD {
     script:
     '''
     set -o pipefail
-    awk -F '\t' 'NR > 1 {print ">rank_" $1 "\n" $2}' top_candidates.tsv \
+    # Groovy unescapes backslash sequences in this script string, so awk escapes are written doubled.
+    awk -F '\\t' 'NR > 1 {print ">rank_" $1 "\\n" $2}' top_candidates.tsv \
       | tr 'T' 'U' \
       | RNAfold --noPS > top_candidates.fold
     '''

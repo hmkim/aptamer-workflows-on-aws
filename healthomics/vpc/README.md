@@ -18,7 +18,21 @@
 | `VpcCidr` | required | `VpcCidr` output of the network stack; scopes the endpoint security group |
 | `CreateConfiguration` | `true` | Create the HealthOmics configuration in CloudFormation; `false` to use the script |
 | `ConfigurationName` | stack name | Configuration name passed to `start-run --configuration-name` |
-| `CreateInterfaceEndpoints` | `false` | Create `workflows-omics`, `storage-omics`, `control-storage-omics`, `analytics-omics`, `tags-omics` interface endpoints |
+| `CreateInterfaceEndpoints` | `false` | Create the interface endpoints selected below |
+| `EndpointWorkflows` | `true` | `com.amazonaws.<region>.workflows-omics` (workflow and run APIs) |
+| `EndpointStorage` | `false` | `storage-omics` (sequence store data plane) |
+| `EndpointControlStorage` | `false` | `control-storage-omics` (sequence and reference store control plane) |
+| `EndpointAnalytics` | `false` | `analytics-omics` (variant and annotation stores) |
+| `EndpointTags` | `false` | `tags-omics` (tagging) |
+
+`scripts/setup-healthomics.sh --vpc --interface-endpoints [--endpoint-services <list>]` sets these (default `workflows-omics` only) and first checks that each service is offered in the Region. Not every Region offers all five. Check with:
+
+```bash
+aws ec2 describe-vpc-endpoint-services --region <REGION> \
+  --query 'ServiceNames[?contains(@, `omics`)]' --output text
+```
+
+On 2026-11-26 this listed all five in us-east-1, us-west-2 and eu-west-1, and only `workflows-omics`, `analytics-omics` and `tags-omics` in ap-northeast-2. The template change was checked with `cfn-lint` and CloudFormation template validation only; it was not deployed.
 | `ProjectTag` | `aptamer-workflows` | `Project` tag value |
 
 Outputs: `RunSecurityGroupId`, `SubnetIds`, `ConfigurationName`, `ConfigurationArn`, `InterfaceEndpointsEnabled`, `ValidationStatus`.

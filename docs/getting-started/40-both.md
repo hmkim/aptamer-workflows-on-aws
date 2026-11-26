@@ -34,7 +34,8 @@ Options passed through:
 | `--build-image` | `setup-batch.sh` | build the CPU pipeline image in CodeBuild |
 | `--gpu-max-vcpus <n>`, `--gpu-instance-types <list>` | `setup-batch.sh` | GPU capacity |
 | `--mountpoint-version <v>`, `--mountpoint-sha256 <h>` | `setup-batch.sh` | Mountpoint package pin |
-| `--vpc`, `--interface-endpoints` | `setup-healthomics.sh` | HealthOmics VPC mode (not yet validated) |
+| `--vpc`, `--interface-endpoints`, `--endpoint-services <list>` | `setup-healthomics.sh` | HealthOmics VPC mode (not yet validated) |
+| `--yes` | `setup-batch.sh` | allow turning off compute that is on (see [Change compute later](20-batch.md#change-compute-later)) |
 
 Example: CPU + GPU Batch with the pipeline image, and HealthOmics in `RESTRICTED` mode:
 
@@ -65,7 +66,7 @@ Then continue with the run steps of each guide: [Batch steps 5 to 7](20-batch.md
 
 ## Validated on
 
-> TODO(validation): wave 3 fills in the date, Region, and result for `setup-all.sh` here and in [the validation guide](../validation.md#validated-on).
+Validated on 2026-11-26 in us-west-2: `setup-all.sh --cpu` created the network, CPU-only Batch and `RESTRICTED` HealthOmics stacks in about 7.5 minutes, and `scripts/cleanup.sh --delete-data` removed them. The one-after-another path (Batch first, then HealthOmics, same prefix) was also run. Details: [the validation guide](../validation.md#validated-on).
 
 ## Next
 

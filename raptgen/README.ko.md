@@ -30,7 +30,8 @@ raptgen/containers/build.sh gpu
 # 2. job definition (이미지를 비워 두면 그 장치는 건너뜀)
 aws cloudformation deploy --stack-name aptamer-workflows-raptgen-jobs \
   --template-file raptgen/batch/jobs.yaml \
-  --parameter-overrides CpuImageUri=<cpu-digest-uri> GpuImageUri=<gpu-digest-uri> \
+  --parameter-overrides NamePrefix=aptamer-workflows-raptgen \
+    CpuImageUri=<cpu-digest-uri> GpuImageUri=<gpu-digest-uri> \
     JobRoleArn=<PipelineJobRoleArn> LogGroupName=<LogGroupName>
 
 # 3. 학습 / 벤치마크
@@ -53,4 +54,4 @@ raptgen/ui/connect.sh --instance-id <InstanceId>      # 그다음 http://localho
 - 두 이미지 모두 원본 논문 dataset A(`data/real/A_4R.fastq`, 80,864 reads)를 포함하므로 CPU만 있는 환경에서도 벤치마크를 실행할 수 있습니다. `--input`이 없으면 `raptgen-job`이 이 데이터를 씁니다.
 - 원본 학습은 seed를 고정하지 않으므로 학습된 모델은 bit 단위로 재현되지 않습니다.
 - 공개 샘플 데이터만 사용합니다. Bayesian optimization(GPyOpt)은 Batch 이미지에서 제외했습니다. UI는 자체 backend로 BO를 합니다.
-- 테스트: `python3 -m pytest tests/test_raptgen_*.py`.
+- 테스트: `python3 -m unittest discover -s tests -p 'test_raptgen_*.py'` (저장소 루트에서 실행).

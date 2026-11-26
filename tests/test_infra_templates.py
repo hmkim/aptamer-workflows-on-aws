@@ -1,4 +1,5 @@
 """Static contract tests for the CloudFormation templates (no AWS calls)."""
+import re
 import shutil
 import subprocess
 import unittest
@@ -189,10 +190,19 @@ class HealthOmicsVpcTemplateTest(unittest.TestCase):
     def test_interface_endpoints_opt_in(self):
         self.assertEqual(self.doc["Parameters"]["CreateInterfaceEndpoints"]["Default"], "false")
         services = set()
+        conditions = self.doc["Conditions"]
+        defaults = {}
         for resource in self.resources.values():
             if resource["Type"] == "AWS::EC2::VPCEndpoint":
-                self.assertEqual(resource["Condition"], "MakeEndpoints")
-                services.add(resource["Properties"]["ServiceName"]["Sub"].rsplit(".", 1)[1])
+                # Each endpoint needs the master switch AND its own per-service switch.
+                cond = conditions[resource["Condition"]]["And"]
+                self.assertIn({"Condition": "MakeEndpoints"}, cond)
+                switch = cond[1]["Equals"][0]["Ref"]
+                service = resource["Properties"]["ServiceName"]["Sub"].rsplit(".", 1)[1]
+                defaults[service] = self.doc["Parameters"][switch]["Default"]
+                services.add(service)
+        # Default selection: workflows-omics only.
+        self.assertEqual({k for k, v in defaults.items() if v == "true"}, {"workflows-omics"})
         self.assertEqual(
             services,
             {"workflows-omics", "storage-omics", "control-storage-omics", "analytics-omics", "tags-omics"},
@@ -208,3 +218,18 @@ class HealthOmicsVpcTemplateTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NextflowScriptEscapingTest(unittest.TestCase):
+    """Groovy parses process scripts before the shell sees them. Both bugs below broke HealthOmics runs."""
+
+    def setUp(self):
+        self.text = (Path(__file__).parents[1] / "nextflow" / "main.nf").read_text()
+
+    def test_no_bare_dollar_before_quote_in_gstrings(self):
+        for block in re.findall(r'"""(.*?)"""', self.text, re.S):
+            self.assertIsNone(re.search(r"(?<!\\)\$['\")]", block), block[:200])
+
+    def test_single_quoted_scripts_double_their_backslash_escapes(self):
+        for block in re.findall(r"'''(.*?)'''", self.text, re.S):
+            self.assertIsNone(re.search(r"(?<!\\)\\[tn]", block), block[:200])

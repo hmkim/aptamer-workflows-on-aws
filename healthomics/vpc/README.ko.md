@@ -18,7 +18,21 @@
 | `VpcCidr` | 필수 | network 스택의 `VpcCidr` output. endpoint 보안 그룹 범위를 정함 |
 | `CreateConfiguration` | `true` | HealthOmics configuration을 CloudFormation에서 만듦. 스크립트를 쓰려면 `false` |
 | `ConfigurationName` | 스택 이름 | `start-run --configuration-name`에 넘기는 configuration 이름 |
-| `CreateInterfaceEndpoints` | `false` | `workflows-omics`, `storage-omics`, `control-storage-omics`, `analytics-omics`, `tags-omics` interface endpoint 생성 |
+| `CreateInterfaceEndpoints` | `false` | 아래에서 고른 interface endpoint 생성 |
+| `EndpointWorkflows` | `true` | `com.amazonaws.<region>.workflows-omics` (workflow, run API) |
+| `EndpointStorage` | `false` | `storage-omics` (sequence store data plane) |
+| `EndpointControlStorage` | `false` | `control-storage-omics` (sequence/reference store control plane) |
+| `EndpointAnalytics` | `false` | `analytics-omics` (variant, annotation store) |
+| `EndpointTags` | `false` | `tags-omics` (태그) |
+
+`scripts/setup-healthomics.sh --vpc --interface-endpoints [--endpoint-services <list>]`가 이 값을 정하고(기본 `workflows-omics`만), 먼저 각 서비스가 그 리전에 있는지 확인합니다. 모든 리전에 다섯 개가 다 있지는 않습니다. 확인 방법:
+
+```bash
+aws ec2 describe-vpc-endpoint-services --region <REGION> \
+  --query 'ServiceNames[?contains(@, `omics`)]' --output text
+```
+
+2026-11-26 기준 us-east-1, us-west-2, eu-west-1에는 다섯 개가 모두 있었고, ap-northeast-2에는 `workflows-omics`, `analytics-omics`, `tags-omics`만 있었습니다. 템플릿 변경은 `cfn-lint`와 CloudFormation 템플릿 검증으로만 확인했고 배포하지 않았습니다.
 | `ProjectTag` | `aptamer-workflows` | `Project` 태그 값 |
 
 Output: `RunSecurityGroupId`, `SubnetIds`, `ConfigurationName`, `ConfigurationArn`, `InterfaceEndpointsEnabled`, `ValidationStatus`.

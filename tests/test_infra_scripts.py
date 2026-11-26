@@ -235,6 +235,28 @@ class SetupScriptsTest(FakeAwsTestCase):
         self.assertEqual(last["MountpointPackageSha256"], SHA)
         self.assertEqual([d[0] for d in self.deploys()].count("t4-network"), 1)
 
+    def test_batch_turning_off_compute_needs_confirmation(self):
+        self.run_script(SCRIPTS / "setup-batch.sh", "--cpu", "--gpu", "--prefix", "t8",
+                        "--mountpoint-sha256", SHA)
+        refused = self.run_script(SCRIPTS / "setup-batch.sh", "--gpu", "--prefix", "t8", check=False)
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn("turns OFF CPU", refused.stderr)
+        self.assertEqual(len([d for d in self.deploys() if d[0] == "t8-batch"]), 1)
+        self.run_script(SCRIPTS / "setup-batch.sh", "--gpu", "--yes", "--prefix", "t8")
+        params = self.deploys()[-1][1]
+        self.assertEqual((params["EnableCpu"], params["EnableGpu"]), ("false", "true"))
+        # Adding compute back needs no confirmation.
+        self.run_script(SCRIPTS / "setup-batch.sh", "--cpu", "--gpu", "--prefix", "t8")
+
+    def test_healthomics_endpoint_services(self):
+        bad = self.run_script(SCRIPTS / "setup-healthomics.sh", "--prefix", "t9", "--vpc",
+                              "--interface-endpoints", "--endpoint-services", "nope-omics", check=False)
+        self.assertNotEqual(bad.returncode, 0)
+        self.run_script(SCRIPTS / "setup-healthomics.sh", "--prefix", "t9", "--vpc")
+        params = self.deploys()[-1][1]
+        self.assertEqual(params["EndpointWorkflows"], "true")
+        self.assertEqual(params["EndpointStorage"], "false")
+
     def test_healthomics_only_creates_no_network(self):
         self.run_script(SCRIPTS / "setup-healthomics.sh", "--prefix", "t5")
         self.assertEqual([d[0] for d in self.deploys()], ["t5-healthomics"])
@@ -290,6 +312,17 @@ class CleanupTest(FakeAwsTestCase):
         flat = [" ".join(c) for c in self.calls()]
         self.assertTrue(any("ecr delete-repository --repository-name x-raptgen-gpu" in c for c in flat))
         self.assertTrue(any("schedule-key-deletion" in c for c in flat))
+
+    def test_raptgen_stacks_deleted_first_and_guarded(self):
+        self.deploy_all("c5")
+        for kind in ("raptgen-jobs", "raptgen-ui"):
+            (self.state / f"c5-{kind}.json").write_text(json.dumps({"params": {}, "outputs": {}, "status": "CREATE_COMPLETE"}))
+        refused = self.run_script(SCRIPTS / "cleanup.sh", "--prefix", "c5", "--stacks", "batch", "--yes", check=False)
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertEqual(self.deletes(), [])
+        self.run_script(SCRIPTS / "cleanup.sh", "--prefix", "c5", "--yes")
+        self.assertEqual(self.deletes(), ["c5-raptgen-ui", "c5-raptgen-jobs", "c5-healthomics-vpc",
+                                          "c5-healthomics", "c5-batch", "c5-network"])
 
     def test_network_protected_while_batch_exists(self):
         self.deploy_all("c4")

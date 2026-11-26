@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 # Install RaptGen-UI on the private EC2 host through SSM Run Command.
 #
-#   raptgen/ui/install.sh --instance-id i-... [--bind-private-ip] [--apt-https]
+#   raptgen/ui/install.sh --instance-id i-... [--bind-private-ip] [--apt-http]
 #
 #   --bind-private-ip  publish the UI on the instance private IP instead of
 #                      127.0.0.1 (needed for raptgen/ui-web; read its README first)
-#   --apt-https        also apply the HTTPS-only apt patch (only TCP 443 egress)
+#   --apt-http         do NOT apply the HTTPS-only apt patch. Default: the patch is applied,
+#                      because the ec2.yaml host allows outbound TCP 443 only (no port 80).
+#                      Use --apt-http only on a host whose network also allows port 80.
+#   --apt-https        accepted for compatibility (the default)
 #
 # Sends install-host.sh plus the patches (about 5 KB) as one command, waits for it
 # and prints the output tail. The first build takes 15-30 minutes. Needs the
@@ -13,13 +16,14 @@
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-instance="" bind_private=0 apt_https=0
+instance="" bind_private=0 apt_https=1
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --instance-id) instance="${2:?}"; shift 2 ;;
     --bind-private-ip) bind_private=1; shift ;;
     --apt-https) apt_https=1; shift ;;
-    -h|--help) sed -n '2,12p' "$0"; exit 0 ;;
+    --apt-http) apt_https=0; shift ;;
+    -h|--help) sed -n '2,16p' "$0"; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
 done
@@ -64,8 +68,12 @@ for _ in $(seq 1 540); do
     --query Status --output text 2>/dev/null || echo Pending)"
   case "${status}" in Success|Failed|Cancelled|TimedOut) break ;; esac
 done
+echo "--- stderr (tail)"
 aws ssm get-command-invocation --command-id "${cid}" --instance-id "${instance}" \
-  --query '[StandardOutputContent,StandardErrorContent]' --output text | tail -n 30
+  --query StandardErrorContent --output text | tail -n 10
+echo "--- stdout (tail)"
+aws ssm get-command-invocation --command-id "${cid}" --instance-id "${instance}" \
+  --query StandardOutputContent --output text | tail -n 20
 echo "status: ${status}"
 [[ "${status}" == Success ]] || exit 1
 echo "Next: raptgen/ui/connect.sh --instance-id ${instance}   then open http://localhost:18042"

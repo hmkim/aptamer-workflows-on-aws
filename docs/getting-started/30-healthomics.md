@@ -103,7 +103,7 @@ export RUN_NAME="d1-$(date -u +%Y%m%d%H%M)"
 healthomics/orchestrate.sh run
 ```
 
-You should see JSON with `id`, `arn`, `status` (`PENDING`), and `name`. Defaults: `--networking-mode RESTRICTED`, dynamic run storage, `RETENTION_MODE=RETAIN`, `LOG_LEVEL=ALL`, output below `s3://<BucketName>/outputs/<RUN_NAME>/`. See [healthomics/README.md](../../healthomics/README.md) for every variable.
+You should see JSON with `id`, `arn`, `status` (`PENDING`), `name` and `outputUri`. Defaults: `--networking-mode RESTRICTED`, dynamic run storage, `RETENTION_MODE=RETAIN`, `LOG_LEVEL=ALL`, output below `s3://<BucketName>/outputs/<RUN_NAME>/`. See [healthomics/README.md](../../healthomics/README.md) for every variable.
 
 ## Step 7: Check the run
 
@@ -117,7 +117,7 @@ Without an argument it reads the last run ID. You should see the run status move
 aws s3 ls "s3://$BUCKET_NAME/outputs/$RUN_NAME/" --region "$AWS_REGION" --recursive
 ```
 
-You should find `enrich/top_candidates.tsv` below the run's output folder. Compare it with other runs using [the validation guide](../validation.md).
+You should find `<run id>/pubdir/enrich/top_candidates.tsv` below the run's output folder (HealthOmics adds the run ID and `pubdir/`), next to `qc/`, `trimmed/`, `counts/`, `fold/` and `checksums.sha256`. In the validation run its sorted SHA-256 matched the Batch copy-in result for the same D1 data. Compare it with other runs using [the validation guide](../validation.md).
 
 ## Optional: VPC networking mode (not yet validated)
 
@@ -138,7 +138,7 @@ Deploy the VPC pieces. This creates the shared network when it is missing (choos
 scripts/setup-healthomics.sh --prefix "$PREFIX" --region "$AWS_REGION" --vpc
 ```
 
-Options: `--configuration-name <name>` (default `<prefix>-vpc`), `--interface-endpoints` (create the PrivateLink endpoints), `--configuration-by-script` (create the configuration with `healthomics/vpc/omics-vpc-configuration.sh` instead of CloudFormation).
+Options: `--configuration-name <name>` (default `<prefix>-vpc`), `--interface-endpoints` (create PrivateLink endpoints; default `workflows-omics` only), `--endpoint-services <list>` (choose from `workflows-omics,storage-omics,control-storage-omics,analytics-omics,tags-omics`; the script checks Region availability first), `--configuration-by-script` (create the configuration with `healthomics/vpc/omics-vpc-configuration.sh` instead of CloudFormation).
 
 You should see `HealthOmics VPC networking mode is NOT YET VALIDATED in this repository`, the stack `<prefix>-healthomics-vpc` reach `CREATE_COMPLETE`, and the configuration reach `ACTIVE`. The stack adds a run security group with HTTPS (TCP 443) egress only and no ingress. Check the configuration:
 
@@ -156,7 +156,7 @@ Details: [healthomics/vpc/README.md](../../healthomics/vpc/README.md).
 
 ## Validated on
 
-> TODO(validation): wave 3 fills in the date, Region, and result for `RESTRICTED` mode here and in [the validation guide](../validation.md#validated-on). VPC mode stays marked not yet validated until it is tested.
+`RESTRICTED` mode validated on 2026-11-26 in us-west-2 with a new prefix: steps 2 to 7 on D1 passed, and the result matched the Batch copy-in result. Details: [the validation guide](../validation.md#validated-on). VPC mode stays not yet validated.
 
 ## Next
 

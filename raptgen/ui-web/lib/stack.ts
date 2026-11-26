@@ -12,7 +12,6 @@ import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
-export const SECRET_ID = '/raptgen-ui-web/edge-auth';
 export const FULL_GROUP = 'raptgen-full';
 export const READONLY_GROUP = 'raptgen-readonly';
 
@@ -21,6 +20,8 @@ export interface RaptGenUiWebProps extends StackProps {
   originPrivateDns: string;
   originPort: number;
   cognitoDomainPrefix: string; // unique per Region; chosen in bin/app.ts
+  secretId: string;            // edge config secret (must match the edge bundle); see lib/names.ts
+  namePrefix: string;          // raptgen-ui-web for the default stack, else the stack name in lower case
 }
 
 /** VPC origin endpoint by ARN (the instance lives in another Region than this stack). */
@@ -39,6 +40,8 @@ export class RaptGenUiWebStack extends Stack {
     super(scope, id, props);
     Tags.of(this).add('Component', 'raptgen-ui-web');
     const COGNITO_DOMAIN_PREFIX = props.cognitoDomainPrefix;
+    const SECRET_ID = props.secretId;
+    const isDefault = props.namePrefix === 'raptgen-ui-web';
 
     const logs = new s3.Bucket(this, 'LogBucket', {
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
@@ -51,7 +54,7 @@ export class RaptGenUiWebStack extends Stack {
 
     // ── Identity: admin-created users only, two roles ──
     const pool = new cognito.UserPool(this, 'Users', {
-      userPoolName: 'raptgen-ui-web',
+      userPoolName: props.namePrefix,
       featurePlan: cognito.FeaturePlan.LITE,
       selfSignUpEnabled: false,
       signInAliases: { username: true },
@@ -98,7 +101,7 @@ export class RaptGenUiWebStack extends Stack {
     });
 
     const vpcOrigin = new cloudfront.VpcOrigin(this, 'Ec2Origin', {
-      vpcOriginName: 'raptgen-ui-dev-ec2',
+      vpcOriginName: isDefault ? 'raptgen-ui-dev-ec2' : `${props.namePrefix}-ec2`,
       endpoint: new ArnEndpoint(props.originInstanceArn, props.originPrivateDns),
       httpPort: props.originPort,
       protocolPolicy: cloudfront.OriginProtocolPolicy.HTTP_ONLY,
@@ -127,7 +130,7 @@ export class RaptGenUiWebStack extends Stack {
 
     const siteUrl = `https://${dist.distributionDomainName}`;
     const client = pool.addClient('WebClient', {
-      userPoolClientName: 'raptgen-ui-web',
+      userPoolClientName: props.namePrefix,
       generateSecret: false,
       authFlows: {},
       preventUserExistenceErrors: true,
@@ -162,7 +165,7 @@ export class RaptGenUiWebStack extends Stack {
     });
     edgeFn.addToRolePolicy(new iam.PolicyStatement({
       actions: ['secretsmanager:GetSecretValue'],
-      resources: [`arn:aws:secretsmanager:us-east-1:${this.account}:secret:${SECRET_ID}-*`],
+      resources: [`arn:aws:secretsmanager:${this.region}:${this.account}:secret:${SECRET_ID}-*`],
     }));
     domain.node.addDependency(pool);
 
@@ -171,6 +174,7 @@ export class RaptGenUiWebStack extends Stack {
     new CfnOutput(this, 'VpcOriginId', { value: vpcOrigin.vpcOriginId });
     new CfnOutput(this, 'UserPoolId', { value: pool.userPoolId });
     new CfnOutput(this, 'UserPoolClientId', { value: client.userPoolClientId });
+    new CfnOutput(this, 'UserSecretPrefix', { value: `/${props.namePrefix}/users/` });
     new CfnOutput(this, 'CognitoDomain', { value: `${COGNITO_DOMAIN_PREFIX}.auth.${this.region}.amazoncognito.com` });
   }
 }

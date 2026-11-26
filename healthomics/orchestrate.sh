@@ -189,7 +189,8 @@ start_run() {
   run_id=$(jq -r '.id' <<<"$response")
   [[ -n "$run_id" && "$run_id" != null ]] || die 'start-run returned no run id'
   state_set last-run-id "$run_id"
-  jq '{id,arn,status,name}' <<<"$response"
+  # StartRun does not echo the run name; print the one that was sent.
+  jq --arg name "$run_name" --arg output "$output_uri" '{id,arn,status,name:$name,outputUri:$output}' <<<"$response"
 }
 
 show_status() {

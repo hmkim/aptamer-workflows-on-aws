@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "build:edge": "node scripts/build-edge.mjs",
+    "build:edge": "tsx scripts/build-edge.mjs",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test edge/authz.test.ts",
     "e2e": "tsx scripts/e2e-roles.ts",

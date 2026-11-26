@@ -183,17 +183,20 @@ Nextflow Mountpoint 실행에서는 내용이 바뀌면 마운트된 객체 키�
 
 이 표는 새로 만든 스택 세트에서 [시작 가이드](getting-started/00-prerequisites.ko.md)를 처음부터 끝까지 따라 한 기록입니다. 행이 없는 경로는 검증되지 않은 것입니다.
 
-> TODO(validation): 3차 작업에서 placeholder 행을 새 실행의 날짜, 리전, 스크립트 옵션, 결과로 바꿉니다.
+아래 실행은 새 스택 prefix, 가이드에 적힌 명령(각 가이드에 적은 수정 반영 후), 공개 D1 데이터를 썼습니다. 소요 시간은 그날의 실제 시간이며 리전, 용량, 네트워크 속도에 따라 달라집니다.
 
 | 경로 | 가이드 | 날짜 | 리전 | 결과 |
 |---|---|---|---|---|
-| Batch, CPU만 | [20-batch](getting-started/20-batch.ko.md#cpu만) | TODO(validation) | TODO(validation) | TODO(validation) |
-| Batch, CPU + GPU | [20-batch](getting-started/20-batch.ko.md#cpu--gpu) | TODO(validation) | TODO(validation) | TODO(validation) |
-| Batch, GPU만 | [20-batch](getting-started/20-batch.ko.md#gpu만) | TODO(validation) | TODO(validation) | TODO(validation) |
-| HealthOmics, `RESTRICTED` | [30-healthomics](getting-started/30-healthomics.ko.md) | TODO(validation) | TODO(validation) | TODO(validation) |
+| Batch, CPU만 | [20-batch](getting-started/20-batch.ko.md#cpu만) | 2026-11-26 | us-west-2 | 통과. `setup-network.sh` 2분, `setup-batch.sh --cpu` 4분, `--build-image`(CodeBuild) 2분, D1 loader 7분(인스턴스 시작 포함), copy-in 패턴 1: 큐 대기 3분 + 실행 10초, `collect_results.sh` 정상. |
+| Batch, CPU + GPU | [20-batch](getting-started/20-batch.ko.md#cpu--gpu) | 2026-11-26 | us-west-2 | 통과. CPU에서 CPU + GPU로 업데이트 1분. CPU와 GPU(`g5.xlarge`, A10G)에서 RaptGen 학습(3 epoch), 두 큐에서 2 epoch 벤치마크 성공. GPU만에서 CPU + GPU로 되돌리기 1분, 이어서 copy-in 다시 성공. |
+| Batch, GPU만 | [20-batch](getting-started/20-batch.ko.md#gpu만) | 2026-11-26 | us-west-2 | 통과. `--yes` 없이는 CPU 끄기를 거부. `--yes`로 GPU job이 도는 중에 업데이트 3분. 이후 `submit-train.sh --device cpu`는 "queue is disabled" 메시지로 멈춤. |
+| HealthOmics, `RESTRICTED` | [30-healthomics](getting-started/30-healthomics.ko.md) | 2026-11-26 | us-west-2 | 통과. 스택 1분, 이미지 빌드와 push 1분, D1 업로드 4분, 등록 15초, D1 실행 약 10분 뒤 `COMPLETED`. 정렬한 `top_candidates.tsv`의 SHA-256이 Batch copy-in 결과와 같음. |
 | HealthOmics, VPC 모드 | [30-healthomics](getting-started/30-healthomics.ko.md#선택-vpc-네트워킹-모드-아직-검증되지-않음) | 아직 검증되지 않음 | — | — |
-| 한 번에 둘 다 (`setup-all.sh`) | [40-both](getting-started/40-both.ko.md#한-번에-둘-다) | TODO(validation) | TODO(validation) | TODO(validation) |
-| 정리 | [90-cleanup](getting-started/90-cleanup.ko.md) | TODO(validation) | TODO(validation) | TODO(validation) |
+| Batch에서 RaptGen | [raptgen/batch](raptgen/batch.ko.md) | 2026-11-26 | us-west-2 | 통과. CPU 이미지 빌드 2분, GPU 이미지 7분, job definition 1분. 3 epoch 학습: CPU 총 133초, GPU 총 149초(학습 48초, encode 102초). 벤치마크 `--device both --epochs 2`: min-count 2에서 CPU 24초/epoch, A10G 17초/epoch. |
+| 사설 EC2의 RaptGen-UI | [raptgen/ui](raptgen/ui.ko.md) | 2026-11-26 | us-west-2 | SSM Run Command로 통과: 호스트 스택 3분, `install.sh` 12분, 127.0.0.1:18042 응답, `e2e_api.py` `ALL: PASS`(10 epoch VAE 242초, GMM 10초). SSM 포트 포워딩(`connect.sh`)은 테스트 PC에 Session Manager plugin이 없어 실행하지 않음. |
+| RaptGen-UI 웹 접속 | [raptgen/ui-web](raptgen/ui-web.ko.md) | 2026-11-26 | us-east-1 (gate), us-west-2 (호스트) | 통과. `--bind-private-ip`로 재설치 1분, gate 배포 12분, origin을 열기 전 `verify-gate.sh` 15/15 OK, `e2e-roles.ts` `E2E PASS`(full 역할 10 epoch 학습 227초, readonly 역할은 모든 쓰기에 403). 첫 gate 삭제는 문서대로 Lambda@Edge version에서 `DELETE_FAILED`. |
+| 한 번에 둘 다 (`setup-all.sh`) | [40-both](getting-started/40-both.ko.md#한-번에-둘-다) | 2026-11-26 | us-west-2 | 통과. `setup-all.sh --cpu`(CPU만 Batch + HealthOmics `RESTRICTED`) 7.5분. network, Batch, HealthOmics 스택이 output과 함께 `CREATE_COMPLETE`. |
+| 정리 | [90-cleanup](getting-started/90-cleanup.ko.md) | 2026-11-26 | us-west-2, us-east-1 | 통과. `cleanup.sh --delete-data`가 RaptGen-UI 호스트, RaptGen job definition, HealthOmics, Batch, network 스택과 버킷, ECR 저장소, 로그 그룹을 지움 (6.5분, `setup-all.sh` prefix는 4분). 웹 gate 스택은 처음에 Lambda@Edge version에서 `DELETE_FAILED`, 약 25분 뒤 재시도로 삭제. 남은 user pool과 로그 버킷은 직접 삭제. KMS 키는 7일 삭제 대기 중. |
 
 ## 합격 체크리스트
 

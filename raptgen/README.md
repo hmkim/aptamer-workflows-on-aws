@@ -35,7 +35,8 @@ raptgen/containers/build.sh gpu
 # 2. job definitions (leave an image empty to skip that device)
 aws cloudformation deploy --stack-name aptamer-workflows-raptgen-jobs \
   --template-file raptgen/batch/jobs.yaml \
-  --parameter-overrides CpuImageUri=<cpu-digest-uri> GpuImageUri=<gpu-digest-uri> \
+  --parameter-overrides NamePrefix=aptamer-workflows-raptgen \
+    CpuImageUri=<cpu-digest-uri> GpuImageUri=<gpu-digest-uri> \
     JobRoleArn=<PipelineJobRoleArn> LogGroupName=<LogGroupName>
 
 # 3. train / benchmark
@@ -60,4 +61,4 @@ raptgen/ui/connect.sh --instance-id <InstanceId>      # then http://localhost:18
 - Training is not seeded upstream, so trained models are not bit-reproducible.
 - Public sample data only. Bayesian optimization (GPyOpt) is excluded from the batch images; the UI
   has its own backend for it.
-- Tests: `python3 -m pytest tests/test_raptgen_*.py`.
+- Tests: `python3 -m unittest discover -s tests -p 'test_raptgen_*.py'` (from the repository root).

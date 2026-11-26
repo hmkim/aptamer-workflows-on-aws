@@ -48,6 +48,7 @@ cd raptgen/ui-web
 npm install
 npx tsx --test edge/authz.test.ts          # role-check unit tests
 
+export UI_WEB_STACK=RaptGenUiWeb   # stack name (default); every script below reads it
 # 1. deploy the gate (edge bundle + CloudFront + Cognito)
 npm run deploy -- \
   -c originInstanceArn=<InstanceArn> \
@@ -67,10 +68,14 @@ aws cloudformation deploy --region <UI-HOST-REGION> --stack-name <prefix>-raptge
 scripts/add-user.sh <username> full|readonly
 ```
 
-Parameters come from CDK context and your AWS CLI configuration. No account, Region (the gate is
-always `us-east-1`), instance or domain is hard-coded. If `cognitoDomainPrefix` is not given, a
-stable `raptgen-ui-<10 hex>` suffix derived from the account is used. Passwords are in Secrets Manager
-`/raptgen-ui-web/users/<username>` (us-east-1). The site URL is the `SiteUrl` stack output.
+Parameters come from CDK context, `UI_WEB_STACK` and your AWS CLI configuration. No account, instance
+or domain is hard-coded; the gate is always in `us-east-1` (Lambda@Edge). The stack name (`UI_WEB_STACK`
+or `-c stackName=...`, default `RaptGenUiWeb`) sets the other names, see `lib/names.ts` and
+`scripts/names.sh`: secrets under `/raptgen-ui-web/` for the default stack, else `/<stack name in lower
+case>/`; the user pool and app client take the same name. The edge bundle has the secret name baked in,
+so `bin/app.ts` refuses a bundle built for another stack. If `cognitoDomainPrefix` is not given, a
+stable value derived from the account (and the stack name, if not the default) is used. Passwords are
+in Secrets Manager `<UserSecretPrefix output><username>` (us-east-1). The site URL is the `SiteUrl` output.
 
 ## Test through the front door
 
@@ -85,7 +90,9 @@ FASTQ=<RAPT1_4R.fastq> SHOT_DIR=./shots npm run e2e
 1. Delete the `origin-access` stack (removes the only ingress rule).
 2. Or disable the CloudFront distribution.
 3. Remove a user: `aws cognito-idp admin-delete-user --region us-east-1 --user-pool-id <UserPoolId> --username <name>`.
-4. `npx cdk destroy` removes the gate. The user pool, logging bucket and secrets users are retained; delete them by hand.
+4. `aws cloudformation delete-stack --region us-east-1 --stack-name "$UI_WEB_STACK"` removes the gate (a first
+   attempt can fail on the Lambda@Edge function while CloudFront still holds replicas; retry later). The user
+   pool, logging bucket and user secrets are retained; delete them by hand.
 
 ## Files
 

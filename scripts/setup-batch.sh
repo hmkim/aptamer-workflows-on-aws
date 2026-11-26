@@ -27,10 +27,14 @@ Usage: scripts/setup-batch.sh [--cpu] [--gpu] [options]
   --mountpoint-sha256 <hash>  SHA-256 of the x86_64 Mountpoint RPM. Default: current value, else
                               computed from the official download (verify it against the release signature)
   --build-image               package this repository, upload it, and build the pipeline image in CodeBuild (CPU)
+  --yes                       do not ask before turning OFF a compute type that is currently ON
+
+The --cpu / --gpu flags describe the FINAL state, not a change: on a CPU + GPU stack,
+--gpu alone removes the CPU compute environment, queue and pipeline job definitions.
 EOF
 }
 
-want_cpu='' want_gpu='' build_image=0
+want_cpu='' want_gpu='' build_image=0 assume_yes=0
 image_tag='' mp_version='' mp_sha='' max_vcpus='' instance_types='' gpu_max_vcpus='' gpu_types=''
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -46,6 +50,7 @@ while [[ $# -gt 0 ]]; do
     --mountpoint-version) mp_version=${2:?}; shift 2 ;;
     --mountpoint-sha256) mp_sha=${2:?}; shift 2 ;;
     --build-image) build_image=1; shift ;;
+    --yes|-y) assume_yes=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) usage; die "unknown option: $1" ;;
   esac
@@ -76,7 +81,32 @@ elif ((exists)); then
 else
   enable_cpu=true; enable_gpu=false
 fi
+cur_cpu='' cur_gpu=''
+if ((exists)); then
+  cur_cpu=$(stack_parameter "$stack" EnableCpu); cur_gpu=$(stack_parameter "$stack" EnableGpu)
+  cur_cpu=${cur_cpu:-true}; cur_gpu=${cur_gpu:-false}
+  log "compute now:   CPU=$cur_cpu GPU=$cur_gpu"
+fi
 log "compute: CPU=$enable_cpu GPU=$enable_gpu"
+[[ "$enable_cpu" == true || "$enable_gpu" == true ]] || die 'at least one of CPU and GPU must stay on'
+turning_off=()
+[[ "$cur_cpu" == true && "$enable_cpu" == false ]] && turning_off+=(CPU)
+[[ "$cur_gpu" == true && "$enable_gpu" == false ]] && turning_off+=(GPU)
+if ((${#turning_off[@]})); then
+  log "WARNING: this run turns OFF ${turning_off[*]} on $stack (flags describe the final state)."
+  [[ " ${turning_off[*]} " == *' CPU '* ]] && \
+    hint 'CPU off removes the CPU compute environment, the CPU queue and the pipeline job definitions.'
+  [[ " ${turning_off[*]} " == *' GPU '* ]] && hint 'GPU off removes the GPU compute environment and the GPU queue.'
+  hint 'To keep both, pass --cpu --gpu. Make sure no jobs are running on the queue you remove.'
+  if ((!assume_yes)); then
+    if [[ -t 0 ]]; then
+      read -r -p "Type yes to continue: " answer
+      [[ "$answer" == yes ]] || die 'cancelled; nothing was changed'
+    else
+      die 'refusing to turn off compute without confirmation: re-run with --yes'
+    fi
+  fi
+fi
 
 params=("VpcId=$vpc_id" "PrivateSubnetIds=$subnets" "PrivateRouteTableIds=$route_tables"
         "ProjectTag=$PREFIX" "EnableCpu=$enable_cpu" "EnableGpu=$enable_gpu")
@@ -102,7 +132,7 @@ if [[ "$enable_cpu" == true ]]; then
     cleanup_paths+=("$tmp_rpm")
     log "computing SHA-256 of Mountpoint $mp_version (x86_64) from the official release"
     curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
-      "https://s3.amazonaws.com/mountpoint-s3-release/$mp_version/x86_64/mount-s3.rpm" -o "$tmp_rpm"
+      "https://s3.amazonaws.com/mountpoint-s3-release/$mp_version/x86_64/mount-s3-$mp_version-x86_64.rpm" -o "$tmp_rpm"
     [[ -s "$tmp_rpm" ]] || die 'downloaded Mountpoint RPM is empty'
     mp_sha=$(sha256sum "$tmp_rpm" | cut -d' ' -f1)
     log "MountpointPackageSha256=$mp_sha (verify against the .asc signature for production use)"

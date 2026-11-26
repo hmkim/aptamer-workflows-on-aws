@@ -20,12 +20,17 @@ Usage: scripts/setup-healthomics.sh [--vpc] [options]
                               the shared network stack when it is missing
   --configuration-name <name> HealthOmics configuration name, default <prefix>-vpc
   --interface-endpoints       with --vpc: create HealthOmics PrivateLink interface endpoints
+                              (default service: workflows-omics only)
+  --endpoint-services <list>  with --interface-endpoints: comma-separated subset of
+                              workflows-omics,storage-omics,control-storage-omics,analytics-omics,tags-omics.
+                              Not every Region offers all five; the script checks before deploying.
   --configuration-by-script   with --vpc: skip AWS::Omics::Configuration and create the
                               configuration with healthomics/vpc/omics-vpc-configuration.sh
 EOF
 }
 
 image_tag='' input_prefix='' output_prefix='' vpc=0 config_name='' endpoints=false by_script=0
+endpoint_services=workflows-omics
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --prefix) PREFIX=${2:?}; shift 2 ;;
@@ -36,6 +41,7 @@ while [[ $# -gt 0 ]]; do
     --vpc) vpc=1; shift ;;
     --configuration-name) config_name=${2:?}; shift 2 ;;
     --interface-endpoints) endpoints=true; shift ;;
+    --endpoint-services) endpoint_services=${2:?}; shift 2 ;;
     --configuration-by-script) by_script=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) usage; die "unknown option: $1" ;;
@@ -47,6 +53,17 @@ for p in "$input_prefix" "$output_prefix"; do
   [[ -z "$p" || "$p" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]*$ ]] || die "invalid S3 prefix: $p"
 done
 config_name=${config_name:-$PREFIX-vpc}
+declare -A endpoint_param=([workflows-omics]=EndpointWorkflows [storage-omics]=EndpointStorage
+  [control-storage-omics]=EndpointControlStorage [analytics-omics]=EndpointAnalytics [tags-omics]=EndpointTags)
+endpoint_params=()
+for svc in "${!endpoint_param[@]}"; do
+  [[ ",$endpoint_services," == *",$svc,"* ]] && v=true || v=false
+  endpoint_params+=("${endpoint_param[$svc]}=$v")
+done
+IFS=, read -r -a _svcs <<<"$endpoint_services"
+for svc in "${_svcs[@]}"; do
+  [[ -n "${endpoint_param[$svc]:-}" ]] || die "unknown endpoint service: $svc"
+done
 [[ "$config_name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]] || die 'invalid --configuration-name'
 
 stack=$(healthomics_stack)
@@ -70,13 +87,22 @@ if ((vpc)); then
   if [[ -z "$vpc_cidr" ]]; then
     vpc_cidr=$(aws --region "$REGION" ec2 describe-vpcs --vpc-ids "$vpc_id" --query 'Vpcs[0].CidrBlock' --output text)
   fi
+  if [[ "$endpoints" == true ]]; then
+    offered=$(aws --region "$REGION" ec2 describe-vpc-endpoint-services \
+      --query 'ServiceNames[?contains(@, `omics`)]' --output text | tr '\t' ' ')
+    for svc in "${_svcs[@]}"; do
+      [[ " $offered " == *" com.amazonaws.$REGION.$svc "* ]] ||
+        die "interface endpoint service $svc is not offered in $REGION (offered: ${offered:-none})"
+    done
+    log "interface endpoints: $endpoint_services"
+  fi
   create_config=true
   ((by_script)) && create_config=false
   vstack=$(healthomics_vpc_stack)
   deploy_stack "$vstack" "$REPO_DIR/healthomics/vpc/vpc.yaml" - \
     "VpcId=$vpc_id" "PrivateSubnetIds=$subnets" "VpcCidr=$vpc_cidr" "ProjectTag=$PREFIX" \
     "CreateConfiguration=$create_config" "ConfigurationName=$config_name" \
-    "CreateInterfaceEndpoints=$endpoints"
+    "CreateInterfaceEndpoints=$endpoints" "${endpoint_params[@]}"
   if ((by_script)); then
     "$REPO_DIR/healthomics/vpc/omics-vpc-configuration.sh" create \
       --region "$REGION" --name "$config_name" --from-stack "$vstack"

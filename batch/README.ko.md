@@ -108,7 +108,7 @@ done
 
 ## 업로드와 실행
 
-모든 운영 스크립트에는 `AWS_REGION`과 `STACK_NAME`이 필요합니다. pipeline과 호환성 제출에는 `FRONT_PRIMER`와 `BACK_PRIMER`도 필요하며, `TOP_CANDIDATES`의 기본값은 `100`입니다. manifest는 헤더와 `round`, `accession`, `label`, `file_name`, `url`, `md5` 열을 갖춘 탭 구분 파일이어야 합니다. loader는 원본 파일 이름을 검증하지만, 각 object를 pipeline 입력 규칙인 `R<round>_<accession>.fastq.gz`로 씁니다. stage-array 패턴에서는 round 번호가 0부터 연속이어야 합니다.
+모든 운영 스크립트에는 `AWS_REGION`과 `STACK_NAME`이 필요합니다. pipeline과 호환성 제출에는 `FRONT_PRIMER`와 `BACK_PRIMER`도 필요하며, `TOP_CANDIDATES`의 기본값은 `100`입니다. manifest는 헤더와 `round`, `run_accession`, `library_name`, `file_name`, `url`, `md5` 열을 갖춘 탭 구분 파일이어야 합니다(`data/dra009383_manifest.tsv` 참고). loader는 원본 파일 이름을 검증하지만, 각 object를 pipeline 입력 규칙인 `R<round>_<run_accession>.fastq.gz`로 씁니다. stage-array 패턴에서는 round 번호가 0부터 연속이어야 합니다.
 
 공개 D1 manifest는 불변 컨테이너에 이미 들어 있으므로 loader를 바로 제출하면 됩니다.
 
