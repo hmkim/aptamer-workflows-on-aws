@@ -1,0 +1,5 @@
+{"event": "env", "torch": "2.14.1+cu126", "torch_cuda_build": "12.6", "cuda_available": false, "gpu": null, "cpu_threads": 4, "cpu_count": 8, "cpu_model": "Intel(R) Xeon(R) Platinum 8488C", "python": "3.12.16"}
+{"event": "input", "sha256": "5008fb291f4394b4c7a7cf3dbf92837102967b517e1f7f8764fc14a740f06e94", "file": "data/real/A_4R.fastq"}
+{"event": "run", "device": "cpu", "min_count": 2, "unique_sequences": 3043, "epochs_requested": 5, "epochs_logged": 5, "wall_seconds": 87.6, "seconds_per_epoch": 17.51, "last_test_loss": 44.388521974906325}
+{"event": "run", "device": "cpu", "min_count": 1, "unique_sequences": 38513, "epochs_requested": 5, "epochs_logged": 5, "wall_seconds": 937.9, "seconds_per_epoch": 187.58, "last_test_loss": 40.91057950697707}
+{"event": "done", "instance_type": "m7i.2xlarge", "service": "EC2 + docker", "docker": "--network none --read-only --user 10001:10001"}

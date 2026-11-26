@@ -1,0 +1,223 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  RaptGen AWS Batch job definitions (train and benchmark, CPU and GPU). Each
+  definition is created only when its image parameter is non-empty, so CPU only,
+  CPU + GPU and GPU only all work from this one template. Images are referenced
+  by digest. Containers run non-root with a read-only root filesystem.
+
+Parameters:
+  NamePrefix:
+    Type: String
+    Default: raptgen
+    AllowedPattern: "^[a-zA-Z][a-zA-Z0-9_-]{0,40}$"
+    Description: Job definitions are named <NamePrefix>-train-cpu, -train-gpu, -bench-cpu, -bench-gpu.
+  CpuImageUri:
+    Type: String
+    Default: ""
+    AllowedPattern: "^$|^[0-9]{12}\\.dkr\\.ecr\\.[a-z0-9-]+\\.amazonaws\\.com/[a-z0-9._/-]+@sha256:[0-9a-f]{64}$"
+    Description: CPU image by digest (RaptgenCpuRepositoryUri@sha256:...). Empty = no CPU job definitions.
+  GpuImageUri:
+    Type: String
+    Default: ""
+    AllowedPattern: "^$|^[0-9]{12}\\.dkr\\.ecr\\.[a-z0-9-]+\\.amazonaws\\.com/[a-z0-9._/-]+@sha256:[0-9a-f]{64}$"
+    Description: GPU image by digest (RaptgenGpuRepositoryUri@sha256:...). Empty = no GPU job definitions.
+  JobRoleArn:
+    Type: String
+    AllowedPattern: "^arn:aws[a-z-]*:iam::[0-9]{12}:role/[\\w+=,.@/-]+$"
+    Description: Task role (batch stack output PipelineJobRoleArn). Needs S3 read/write on the work bucket.
+  LogGroupName:
+    Type: String
+    Description: CloudWatch Logs group (batch stack output LogGroupName).
+  CpuVcpus:
+    Type: Number
+    Default: 4
+    MinValue: 1
+  CpuMemoryMiB:
+    Type: Number
+    Default: 14336
+    MinValue: 2048
+  GpuVcpus:
+    Type: Number
+    Default: 4
+    MinValue: 1
+  GpuMemoryMiB:
+    Type: Number
+    Default: 14336
+    MinValue: 2048
+    Description: Keep below the instance memory (g5.xlarge has 16 GiB).
+  TrainTimeoutSeconds:
+    Type: Number
+    Default: 14400
+    MinValue: 600
+  BenchTimeoutSeconds:
+    Type: Number
+    Default: 7200
+    MinValue: 600
+
+Conditions:
+  HasCpu: !Not [!Equals [!Ref CpuImageUri, ""]]
+  HasGpu: !Not [!Equals [!Ref GpuImageUri, ""]]
+
+Rules:
+  AtLeastOneImage:
+    Assertions:
+      - Assert: !Or
+          - !Not [!Equals [!Ref CpuImageUri, ""]]
+          - !Not [!Equals [!Ref GpuImageUri, ""]]
+        AssertDescription: Set CpuImageUri and/or GpuImageUri.
+
+Resources:
+  TrainCpu:
+    Type: AWS::Batch::JobDefinition
+    Condition: HasCpu
+    Properties:
+      JobDefinitionName: !Sub "${NamePrefix}-train-cpu"
+      Type: container
+      PlatformCapabilities: [EC2]
+      PropagateTags: true
+      Timeout:
+        AttemptDurationSeconds: !Ref TrainTimeoutSeconds
+      RetryStrategy:
+        Attempts: 1
+      ContainerProperties:
+        Image: !Ref CpuImageUri
+        Command: ["/usr/local/bin/raptgen-job", "train"]
+        JobRoleArn: !Ref JobRoleArn
+        User: "10001:10001"
+        ReadonlyRootFilesystem: true
+        Privileged: false
+        Environment:
+          - { Name: RAPTGEN_DEVICE, Value: cpu }
+        ResourceRequirements:
+          - { Type: VCPU, Value: !Ref CpuVcpus }
+          - { Type: MEMORY, Value: !Ref CpuMemoryMiB }
+        LinuxParameters:
+          Tmpfs:
+            - { ContainerPath: /tmp, Size: 2048, MountOptions: [rw, nosuid] }
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group: !Ref LogGroupName
+            awslogs-stream-prefix: raptgen-train-cpu
+
+  TrainGpu:
+    Type: AWS::Batch::JobDefinition
+    Condition: HasGpu
+    Properties:
+      JobDefinitionName: !Sub "${NamePrefix}-train-gpu"
+      Type: container
+      PlatformCapabilities: [EC2]
+      PropagateTags: true
+      Timeout:
+        AttemptDurationSeconds: !Ref TrainTimeoutSeconds
+      RetryStrategy:
+        Attempts: 1
+      ContainerProperties:
+        Image: !Ref GpuImageUri
+        Command: ["/usr/local/bin/raptgen-job", "train"]
+        JobRoleArn: !Ref JobRoleArn
+        User: "10001:10001"
+        ReadonlyRootFilesystem: true
+        Privileged: false
+        Environment:
+          - { Name: RAPTGEN_DEVICE, Value: cuda }
+        ResourceRequirements:
+          - { Type: VCPU, Value: !Ref GpuVcpus }
+          - { Type: MEMORY, Value: !Ref GpuMemoryMiB }
+          - { Type: GPU, Value: "1" }
+        LinuxParameters:
+          Tmpfs:
+            - { ContainerPath: /tmp, Size: 2048, MountOptions: [rw, nosuid] }
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group: !Ref LogGroupName
+            awslogs-stream-prefix: raptgen-train-gpu
+
+  BenchCpu:
+    Type: AWS::Batch::JobDefinition
+    Condition: HasCpu
+    Properties:
+      JobDefinitionName: !Sub "${NamePrefix}-bench-cpu"
+      Type: container
+      PlatformCapabilities: [EC2]
+      PropagateTags: true
+      Timeout:
+        AttemptDurationSeconds: !Ref BenchTimeoutSeconds
+      RetryStrategy:
+        Attempts: 1
+      ContainerProperties:
+        Image: !Ref CpuImageUri
+        Command: ["/usr/local/bin/raptgen-bench"]
+        JobRoleArn: !Ref JobRoleArn
+        User: "10001:10001"
+        ReadonlyRootFilesystem: true
+        Privileged: false
+        Environment:
+          - { Name: BENCH_DEVICES, Value: cpu }
+          - { Name: BENCH_MINCOUNTS, Value: "2 1" }
+          - { Name: BENCH_EPOCHS, Value: "5" }
+          - { Name: BENCH_OUT, Value: /tmp/bench }
+        ResourceRequirements:
+          - { Type: VCPU, Value: !Ref CpuVcpus }
+          - { Type: MEMORY, Value: !Ref CpuMemoryMiB }
+        LinuxParameters:
+          Tmpfs:
+            - { ContainerPath: /tmp, Size: 2048, MountOptions: [rw, nosuid] }
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group: !Ref LogGroupName
+            awslogs-stream-prefix: raptgen-bench-cpu
+
+  BenchGpu:
+    Type: AWS::Batch::JobDefinition
+    Condition: HasGpu
+    Properties:
+      JobDefinitionName: !Sub "${NamePrefix}-bench-gpu"
+      Type: container
+      PlatformCapabilities: [EC2]
+      PropagateTags: true
+      Timeout:
+        AttemptDurationSeconds: !Ref BenchTimeoutSeconds
+      RetryStrategy:
+        Attempts: 1
+      ContainerProperties:
+        Image: !Ref GpuImageUri
+        Command: ["/usr/local/bin/raptgen-bench"]
+        JobRoleArn: !Ref JobRoleArn
+        User: "10001:10001"
+        ReadonlyRootFilesystem: true
+        Privileged: false
+        Environment:
+          # Same job times the GPU and, on the same instance, the CPU.
+          - { Name: BENCH_DEVICES, Value: "cuda cpu" }
+          - { Name: BENCH_MINCOUNTS, Value: "2 1" }
+          - { Name: BENCH_EPOCHS, Value: "5" }
+          - { Name: BENCH_OUT, Value: /tmp/bench }
+        ResourceRequirements:
+          - { Type: VCPU, Value: !Ref GpuVcpus }
+          - { Type: MEMORY, Value: !Ref GpuMemoryMiB }
+          - { Type: GPU, Value: "1" }
+        LinuxParameters:
+          Tmpfs:
+            - { ContainerPath: /tmp, Size: 2048, MountOptions: [rw, nosuid] }
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group: !Ref LogGroupName
+            awslogs-stream-prefix: raptgen-bench-gpu
+
+Outputs:
+  TrainCpuJobDefinition:
+    Condition: HasCpu
+    Value: !Ref TrainCpu
+  TrainGpuJobDefinition:
+    Condition: HasGpu
+    Value: !Ref TrainGpu
+  BenchCpuJobDefinition:
+    Condition: HasCpu
+    Value: !Ref BenchCpu
+  BenchGpuJobDefinition:
+    Condition: HasGpu
+    Value: !Ref BenchGpu

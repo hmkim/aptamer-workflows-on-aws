@@ -1,0 +1,14 @@
+*
+!source-checksums.sha256
+!patched-checksums.sha256
+!patches/0001-numpy-int-and-bo-exclusion.patch
+!patches/0002-numpy-probability-normalization.patch
+!requirements.lock
+!requirements-s3.lock
+!requirements-cuda.txt
+!bench.sh
+!raptgen_job.py
+!raptgen_contract.py
+!NOTICE
+!smoke-test.sh
+!tool-version.sh

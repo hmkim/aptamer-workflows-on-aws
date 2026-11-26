@@ -1,0 +1,171 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  NOT YET VALIDATED. Optional AWS HealthOmics VPC networking in the shared private
+  network: a run security group (HTTPS egress only, no ingress), an
+  AWS::Omics::Configuration for VPC-mode runs, and opt-in PrivateLink interface
+  endpoints for calling HealthOmics APIs from inside the VPC.
+
+# Facts from the HealthOmics developer guide (workflows-vpc-networking,
+# workflows-vpc-internet, vpc-interface-endpoints):
+# - Default run networking is RESTRICTED (same-Region S3 and ECR only). VPC mode
+#   places HealthOmics-managed ENIs in the subnets of a configuration.
+# - A configuration takes 1-16 subnets (at most one per AZ, AZs where HealthOmics
+#   operates) and 1-5 security groups from the same VPC. It is immutable and can
+#   take up to 15 minutes to go from CREATING to ACTIVE. Default quota: 10.
+# - The first CreateConfiguration creates the AWSServiceRoleForHealthOmics
+#   service-linked role; the deployer needs iam:CreateServiceLinkedRole for
+#   omics.amazonaws.com.
+# - Public subnets give no internet access; use private subnets with a NAT route.
+# - Interface endpoints (PrivateLink) are a separate feature: they let clients in
+#   the VPC call HealthOmics APIs privately. VPC-mode runs do not need them.
+
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: Shared VPC (VpcId output of the network stack).
+  PrivateSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Private subnets with a NAT route, one per Availability Zone.
+  VpcCidr:
+    Type: String
+    AllowedPattern: '^([0-9]{1,3}\.){3}[0-9]{1,3}/([0-9]|[12][0-9]|3[0-2])$'
+    Description: VPC CIDR (VpcCidr output of the network stack). Scopes the endpoint security group.
+  CreateConfiguration:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: Create the AWS::Omics::Configuration. Set false to use omics-vpc-configuration.sh instead.
+  ConfigurationName:
+    Type: String
+    Default: ''
+    AllowedPattern: '^$|^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$'
+    Description: HealthOmics configuration name. Empty uses the stack name.
+  CreateInterfaceEndpoints:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: Create PrivateLink interface endpoints for the HealthOmics APIs (hourly charge per endpoint and AZ).
+  ProjectTag:
+    Type: String
+    Default: aptamer-workflows
+    AllowedPattern: '^[A-Za-z0-9._-]{1,64}$'
+
+Conditions:
+  MakeConfiguration: !Equals [!Ref CreateConfiguration, 'true']
+  HasConfigurationName: !Not [!Equals [!Ref ConfigurationName, '']]
+  MakeEndpoints: !Equals [!Ref CreateInterfaceEndpoints, 'true']
+
+Resources:
+  RunSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: HealthOmics VPC-mode runs with no inbound rules and HTTPS-only outbound access.
+      VpcId: !Ref VpcId
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: HTTPS through the NAT gateway or VPC endpoints.
+      Tags:
+        - {Key: Name, Value: !Sub '${AWS::StackName}-runs'}
+        - {Key: Project, Value: !Ref ProjectTag}
+
+  OmicsConfiguration:
+    Type: AWS::Omics::Configuration
+    Condition: MakeConfiguration
+    Properties:
+      Name: !If [HasConfigurationName, !Ref ConfigurationName, !Ref 'AWS::StackName']
+      Description: VPC-mode run configuration for aptamer workflows (not yet validated).
+      RunConfigurations:
+        VpcConfig:
+          SecurityGroupIds: [!Ref RunSecurityGroup]
+          SubnetIds: !Ref PrivateSubnetIds
+      Tags:
+        Project: !Ref ProjectTag
+
+  EndpointSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Condition: MakeEndpoints
+    Properties:
+      GroupDescription: HealthOmics interface endpoints, HTTPS from inside the VPC only.
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: !Ref VpcCidr
+          Description: HTTPS from clients inside the VPC.
+      SecurityGroupEgress:
+        - IpProtocol: '-1'
+          CidrIp: 127.0.0.1/32
+          Description: Placeholder that removes the default allow-all egress rule.
+      Tags:
+        - {Key: Name, Value: !Sub '${AWS::StackName}-endpoints'}
+        - {Key: Project, Value: !Ref ProjectTag}
+  WorkflowsEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Condition: MakeEndpoints
+    Properties:
+      VpcEndpointType: Interface
+      VpcId: !Ref VpcId
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.workflows-omics'
+      SubnetIds: !Ref PrivateSubnetIds
+      SecurityGroupIds: [!Ref EndpointSecurityGroup]
+      PrivateDnsEnabled: true
+  StorageEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Condition: MakeEndpoints
+    Properties:
+      VpcEndpointType: Interface
+      VpcId: !Ref VpcId
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.storage-omics'
+      SubnetIds: !Ref PrivateSubnetIds
+      SecurityGroupIds: [!Ref EndpointSecurityGroup]
+      PrivateDnsEnabled: true
+  ControlStorageEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Condition: MakeEndpoints
+    Properties:
+      VpcEndpointType: Interface
+      VpcId: !Ref VpcId
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.control-storage-omics'
+      SubnetIds: !Ref PrivateSubnetIds
+      SecurityGroupIds: [!Ref EndpointSecurityGroup]
+      PrivateDnsEnabled: true
+  AnalyticsEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Condition: MakeEndpoints
+    Properties:
+      VpcEndpointType: Interface
+      VpcId: !Ref VpcId
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.analytics-omics'
+      SubnetIds: !Ref PrivateSubnetIds
+      SecurityGroupIds: [!Ref EndpointSecurityGroup]
+      PrivateDnsEnabled: true
+  TagsEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Condition: MakeEndpoints
+    Properties:
+      VpcEndpointType: Interface
+      VpcId: !Ref VpcId
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.tags-omics'
+      SubnetIds: !Ref PrivateSubnetIds
+      SecurityGroupIds: [!Ref EndpointSecurityGroup]
+      PrivateDnsEnabled: true
+
+Outputs:
+  RunSecurityGroupId:
+    Value: !Ref RunSecurityGroup
+  SubnetIds:
+    Value: !Join [',', !Ref PrivateSubnetIds]
+  ConfigurationName:
+    Condition: MakeConfiguration
+    Value: !If [HasConfigurationName, !Ref ConfigurationName, !Ref 'AWS::StackName']
+  ConfigurationArn:
+    Condition: MakeConfiguration
+    Value: !GetAtt OmicsConfiguration.Arn
+  InterfaceEndpointsEnabled:
+    Value: !Ref CreateInterfaceEndpoints
+  ValidationStatus:
+    Value: not yet validated

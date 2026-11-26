@@ -1,0 +1,13 @@
+diff --git a/frontend/services/api-client.ts b/frontend/services/api-client.ts
+index 5dd0187..7312b50 100644
+--- a/frontend/services/api-client.ts
++++ b/frontend/services/api-client.ts
+@@ -7,7 +7,7 @@ import { apiUpload } from "./route/upload";
+ import { apiBayesopt } from "./route/bayesopt";
+ import { apiGMM } from "./route/gmm";
+ 
+-export const apiClient = new Zodios("http://localhost:18042/api", [
++export const apiClient = new Zodios("/api", [
+   ...apiData,
+   ...apiSession,
+   ...apiTool,

@@ -1,7 +1,8 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >-
   Private AWS Batch infrastructure for copy-in, stage dependency, read-only Mountpoint,
-  compatibility-check, and manifest-loader jobs.
+  compatibility-check, and manifest-loader jobs, plus optional GPU capacity and private
+  ECR repositories for RaptGen images. CPU and GPU compute are each optional.
 
 Parameters:
   VpcId:
@@ -25,18 +26,41 @@ Parameters:
     Type: String
     Default: input
     AllowedPattern: '^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$'
+  EnableCpu:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: Create the CPU compute environment, CPU queue, CodeBuild image project, and pipeline job definitions.
+  EnableGpu:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: Create the GPU compute environment (ECS_AL2023_NVIDIA AMI) and GPU queue.
   ImageTag:
     Type: String
-    AllowedPattern: '^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$'
-    Description: Immutable image tag built by the CodeBuild project.
+    Default: ''
+    AllowedPattern: '^$|^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$'
+    Description: Immutable pipeline image tag built by the CodeBuild project. Required when EnableCpu is true.
   MaxvCpus:
     Type: Number
     Default: 72
     MinValue: 2
     MaxValue: 512
+    Description: Maximum vCPUs of the CPU compute environment.
   InstanceTypes:
     Type: CommaDelimitedList
     Default: c7i,c6i
+    Description: Instance types or families of the CPU compute environment.
+  GpuInstanceTypes:
+    Type: CommaDelimitedList
+    Default: g5.xlarge,g6.xlarge
+    Description: GPU instance types. Check the Running On-Demand G and VT instances vCPU quota first.
+  GpuMaxvCpus:
+    Type: Number
+    Default: 8
+    MinValue: 1
+    MaxValue: 512
+    Description: Maximum vCPUs of the GPU compute environment.
   ContainerUid:
     Type: Number
     Default: 57439
@@ -52,16 +76,39 @@ Parameters:
     MaxValue: 2000
   MountpointVersion:
     Type: String
-    AllowedPattern: '^[0-9]+\.[0-9]+\.[0-9]+$'
-    Description: Exact Mountpoint for Amazon S3 release version, without a leading v.
+    Default: ''
+    AllowedPattern: '^$|^[0-9]+\.[0-9]+\.[0-9]+$'
+    Description: Exact Mountpoint for Amazon S3 release version, without a leading v. Required when EnableCpu is true.
   MountpointPackageSha256:
     Type: String
-    AllowedPattern: '^[A-Fa-f0-9]{64}$'
-    Description: SHA-256 for the architecture-specific Mountpoint RPM.
+    Default: ''
+    AllowedPattern: '^$|^[A-Fa-f0-9]{64}$'
+    Description: SHA-256 for the architecture-specific Mountpoint RPM. Required when EnableCpu is true.
   LogRetentionDays:
     Type: Number
     Default: 30
     AllowedValues: [1, 3, 5, 7, 14, 30, 60, 90, 180, 365]
+
+Conditions:
+  CpuEnabled: !Equals [!Ref EnableCpu, 'true']
+  GpuEnabled: !Equals [!Ref EnableGpu, 'true']
+
+Rules:
+  AtLeastOneComputeType:
+    Assertions:
+      - Assert: !Or
+          - !Equals [!Ref EnableCpu, 'true']
+          - !Equals [!Ref EnableGpu, 'true']
+        AssertDescription: Set EnableCpu, EnableGpu, or both to true.
+  CpuInputsRequired:
+    RuleCondition: !Equals [!Ref EnableCpu, 'true']
+    Assertions:
+      - Assert: !Not [!Equals [!Ref ImageTag, '']]
+        AssertDescription: ImageTag is required when EnableCpu is true.
+      - Assert: !Not [!Equals [!Ref MountpointVersion, '']]
+        AssertDescription: MountpointVersion is required when EnableCpu is true.
+      - Assert: !Not [!Equals [!Ref MountpointPackageSha256, '']]
+        AssertDescription: MountpointPackageSha256 is required when EnableCpu is true.
 
 Resources:
   DataKey:
@@ -187,6 +234,8 @@ Resources:
 
   ImageRepository:
     Type: AWS::ECR::Repository
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       RepositoryName: !Sub '${AWS::StackName}-pipeline'
       EncryptionConfiguration:
@@ -198,8 +247,40 @@ Resources:
       EmptyOnDelete: false
       Tags:
         - {Key: Project, Value: !Ref ProjectTag}
+  # RaptGen images are built locally with docker build and pushed here.
+  RaptgenCpuRepository:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      RepositoryName: !Sub '${AWS::StackName}-raptgen-cpu'
+      EncryptionConfiguration:
+        EncryptionType: KMS
+        KmsKey: !GetAtt DataKey.Arn
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      ImageTagMutability: IMMUTABLE
+      EmptyOnDelete: false
+      Tags:
+        - {Key: Project, Value: !Ref ProjectTag}
+  RaptgenGpuRepository:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      RepositoryName: !Sub '${AWS::StackName}-raptgen-gpu'
+      EncryptionConfiguration:
+        EncryptionType: KMS
+        KmsKey: !GetAtt DataKey.Arn
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      ImageTagMutability: IMMUTABLE
+      EmptyOnDelete: false
+      Tags:
+        - {Key: Project, Value: !Ref ProjectTag}
   ImageBuildRole:
     Type: AWS::IAM::Role
+    Condition: CpuEnabled
     Properties:
       Description: Builds and pushes the workflow container image.
       AssumeRolePolicyDocument:
@@ -241,6 +322,7 @@ Resources:
                 Resource: !GetAtt ImageRepository.Arn
   ImageBuildProject:
     Type: AWS::CodeBuild::Project
+    Condition: CpuEnabled
     Properties:
       Name: !Sub '${AWS::StackName}-image'
       ServiceRole: !GetAtt ImageBuildRole.Arn
@@ -415,6 +497,7 @@ Resources:
 
   ComputeLaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
+    Condition: CpuEnabled
     Properties:
       LaunchTemplateName: !Sub '${AWS::StackName}-compute'
       LaunchTemplateData:
@@ -469,6 +552,7 @@ Resources:
 
   ComputeEnvironment:
     Type: AWS::Batch::ComputeEnvironment
+    Condition: CpuEnabled
     Properties:
       Type: MANAGED
       State: ENABLED
@@ -495,6 +579,7 @@ Resources:
           Project: !Ref ProjectTag
   JobQueue:
     Type: AWS::Batch::JobQueue
+    Condition: CpuEnabled
     Properties:
       JobQueueName: !Sub '${AWS::StackName}-queue'
       State: ENABLED
@@ -502,6 +587,71 @@ Resources:
       ComputeEnvironmentOrder:
         - Order: 1
           ComputeEnvironment: !Ref ComputeEnvironment
+
+  # GPU capacity: no Mountpoint bootstrap, same private subnets, security
+  # group, IMDSv2 settings, and encrypted root volume as the CPU hosts.
+  GpuLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Condition: GpuEnabled
+    Properties:
+      LaunchTemplateName: !Sub '${AWS::StackName}-gpu'
+      LaunchTemplateData:
+        MetadataOptions:
+          HttpEndpoint: enabled
+          HttpTokens: required
+          HttpPutResponseHopLimit: 1
+        BlockDeviceMappings:
+          - DeviceName: /dev/xvda
+            Ebs:
+              DeleteOnTermination: true
+              Encrypted: true
+              VolumeSize: !Ref RootVolumeSizeGiB
+              VolumeType: gp3
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - {Key: Name, Value: !Sub '${AWS::StackName}-gpu'}
+              - {Key: Project, Value: !Ref ProjectTag}
+          - ResourceType: volume
+            Tags:
+              - {Key: Project, Value: !Ref ProjectTag}
+  GpuComputeEnvironment:
+    Type: AWS::Batch::ComputeEnvironment
+    Condition: GpuEnabled
+    Properties:
+      Type: MANAGED
+      State: ENABLED
+      UpdatePolicy:
+        TerminateJobsOnUpdate: false
+        JobExecutionTimeoutMinutes: 30
+      ComputeResources:
+        Type: EC2
+        AllocationStrategy: BEST_FIT_PROGRESSIVE
+        MinvCpus: 0
+        DesiredvCpus: 0
+        MaxvCpus: !Ref GpuMaxvCpus
+        InstanceTypes: !Ref GpuInstanceTypes
+        InstanceRole: !GetAtt ComputeProfile.Arn
+        Subnets: !Ref PrivateSubnetIds
+        SecurityGroupIds: [!Ref ComputeSecurityGroup]
+        LaunchTemplate:
+          LaunchTemplateId: !Ref GpuLaunchTemplate
+          Version: !GetAtt GpuLaunchTemplate.LatestVersionNumber
+        Ec2Configuration:
+          - ImageType: ECS_AL2023_NVIDIA
+        UpdateToLatestImageVersion: true
+        Tags:
+          Project: !Ref ProjectTag
+  GpuJobQueue:
+    Type: AWS::Batch::JobQueue
+    Condition: GpuEnabled
+    Properties:
+      JobQueueName: !Sub '${AWS::StackName}-gpu-queue'
+      State: ENABLED
+      Priority: 1
+      ComputeEnvironmentOrder:
+        - Order: 1
+          ComputeEnvironment: !Ref GpuComputeEnvironment
   LogGroup:
     Type: AWS::Logs::LogGroup
     DeletionPolicy: Retain
@@ -512,6 +662,7 @@ Resources:
 
   PipelineJobDefinition:
     Type: AWS::Batch::JobDefinition
+    Condition: CpuEnabled
     Properties:
       JobDefinitionName: !Sub '${AWS::StackName}-pipeline'
       Type: container
@@ -557,6 +708,7 @@ Resources:
 
   MountpointJobDefinition:
     Type: AWS::Batch::JobDefinition
+    Condition: CpuEnabled
     Properties:
       JobDefinitionName: !Sub '${AWS::StackName}-mountpoint'
       Type: container
@@ -609,6 +761,7 @@ Resources:
 
   DataLoaderJobDefinition:
     Type: AWS::Batch::JobDefinition
+    Condition: CpuEnabled
     Properties:
       JobDefinitionName: !Sub '${AWS::StackName}-loader'
       Type: container
@@ -649,6 +802,7 @@ Resources:
 
 Outputs:
   ImageBuildProjectName:
+    Condition: CpuEnabled
     Value: !Ref ImageBuildProject
   DataBucketName:
     Value: !Ref DataBucket
@@ -659,12 +813,32 @@ Outputs:
   RepositoryUri:
     Value: !GetAtt ImageRepository.RepositoryUri
   JobQueueName:
+    Description: CPU queue when EnableCpu is true, otherwise the GPU queue.
+    Value: !If [CpuEnabled, !Sub '${AWS::StackName}-queue', !Sub '${AWS::StackName}-gpu-queue']
+  CpuJobQueueName:
+    Condition: CpuEnabled
     Value: !Sub '${AWS::StackName}-queue'
+  GpuJobQueueName:
+    Condition: GpuEnabled
+    Value: !Sub '${AWS::StackName}-gpu-queue'
+  CpuEnabled:
+    Value: !Ref EnableCpu
+  GpuEnabled:
+    Value: !Ref EnableGpu
+  RaptgenCpuRepositoryUri:
+    Value: !GetAtt RaptgenCpuRepository.RepositoryUri
+  RaptgenGpuRepositoryUri:
+    Value: !GetAtt RaptgenGpuRepository.RepositoryUri
+  ComputeSecurityGroupId:
+    Value: !Ref ComputeSecurityGroup
   PipelineJobDefinitionArn:
+    Condition: CpuEnabled
     Value: !Ref PipelineJobDefinition
   MountpointJobDefinitionArn:
+    Condition: CpuEnabled
     Value: !Ref MountpointJobDefinition
   DataLoaderJobDefinitionArn:
+    Condition: CpuEnabled
     Value: !Ref DataLoaderJobDefinition
   PipelineJobRoleArn:
     Value: !GetAtt PipelineJobRole.Arn

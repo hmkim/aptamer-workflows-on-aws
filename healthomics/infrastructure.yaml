@@ -191,3 +191,5 @@ Outputs:
     Value: !Ref InputPrefix
   OutputPrefix:
     Value: !Ref OutputPrefix
+  KmsKeyArn:
+    Value: !GetAtt WorkflowKey.Arn

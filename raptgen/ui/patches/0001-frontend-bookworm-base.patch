@@ -1,0 +1,10 @@
+diff --git a/frontend/dockerfile b/frontend/dockerfile
+index e66b11a..b782888 100644
+--- a/frontend/dockerfile
++++ b/frontend/dockerfile
+@@ -1,4 +1,4 @@
+-FROM node:20.2-slim
++FROM node:20-bookworm-slim
+ 
+ RUN useradd -m devcontainer
+ 

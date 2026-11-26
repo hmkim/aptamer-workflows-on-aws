@@ -1,5 +1,15 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Private two-Availability-Zone network for the AWS Batch workflow.
+Description: >-
+  Shared private two-Availability-Zone network for AWS Batch, an optional
+  RaptGen-UI EC2 instance, and optional AWS HealthOmics VPC-mode runs.
+
+# HealthOmics VPC mode (not yet validated) accepts at most one subnet per
+# Availability Zone and only private subnets with a NAT route. The two private
+# subnets below therefore sit in two different Availability Zones and route
+# 0.0.0.0/0 to the NAT gateway. HealthOmics operates only in listed AZs per
+# Region (for example us-west-2a-d, us-east-1a/b/c/d/f, ap-northeast-1a/c/d);
+# set AvailabilityZone1/2 explicitly if the first two AZs returned by
+# Fn::GetAZs are not on that list in your Region.
 
 Parameters:
   VpcCidr:
@@ -19,6 +29,28 @@ Parameters:
     Type: String
     Default: aptamer-workflows
     AllowedPattern: '^[A-Za-z0-9._-]{1,64}$'
+  AvailabilityZone1:
+    Type: String
+    Default: ''
+    AllowedPattern: '^$|^[a-z]{2}(-[a-z]+)+-[0-9][a-z]$'
+    Description: Optional AZ name for private subnet 1 and the NAT subnet. Empty selects the first AZ in the Region.
+  AvailabilityZone2:
+    Type: String
+    Default: ''
+    AllowedPattern: '^$|^[a-z]{2}(-[a-z]+)+-[0-9][a-z]$'
+    Description: Optional AZ name for private subnet 2; must differ from AvailabilityZone1. Empty selects the second AZ in the Region.
+
+Conditions:
+  HasAz1: !Not [!Equals [!Ref AvailabilityZone1, '']]
+  HasAz2: !Not [!Equals [!Ref AvailabilityZone2, '']]
+
+Rules:
+  DistinctAvailabilityZones:
+    Assertions:
+      - Assert: !Or
+          - !Equals [!Ref AvailabilityZone1, '']
+          - !Not [!Equals [!Ref AvailabilityZone1, !Ref AvailabilityZone2]]
+        AssertDescription: AvailabilityZone1 and AvailabilityZone2 must differ (HealthOmics VPC mode allows one subnet per AZ).
 
 Resources:
   Vpc:
@@ -46,7 +78,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref Vpc
-      AvailabilityZone: !Select [0, !GetAZs '']
+      AvailabilityZone: !If [HasAz1, !Ref AvailabilityZone1, !Select [0, !GetAZs '']]
       CidrBlock: !Ref PublicSubnetCidr
       MapPublicIpOnLaunch: false
       Tags:
@@ -56,7 +88,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref Vpc
-      AvailabilityZone: !Select [0, !GetAZs '']
+      AvailabilityZone: !If [HasAz1, !Ref AvailabilityZone1, !Select [0, !GetAZs '']]
       CidrBlock: !Ref PrivateSubnet1Cidr
       MapPublicIpOnLaunch: false
       Tags:
@@ -66,7 +98,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref Vpc
-      AvailabilityZone: !Select [1, !GetAZs '']
+      AvailabilityZone: !If [HasAz2, !Ref AvailabilityZone2, !Select [1, !GetAZs '']]
       CidrBlock: !Ref PrivateSubnet2Cidr
       MapPublicIpOnLaunch: false
       Tags:
@@ -140,3 +172,8 @@ Outputs:
     Value: !Join [',', [!Ref PrivateSubnet1, !Ref PrivateSubnet2]]
   PrivateRouteTableIds:
     Value: !Join [',', [!Ref PrivateRouteTable1, !Ref PrivateRouteTable2]]
+  VpcCidr:
+    Description: VPC CIDR, used to scope optional interface endpoint security groups.
+    Value: !GetAtt Vpc.CidrBlock
+  PrivateSubnetAvailabilityZones:
+    Value: !Join [',', [!GetAtt PrivateSubnet1.AvailabilityZone, !GetAtt PrivateSubnet2.AvailabilityZone]]

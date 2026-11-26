@@ -1,6 +1,6 @@
 # Local inputs and outputs
 inputs/
-results/
+/results/
 work/
 .scratch/
 
@@ -34,3 +34,6 @@ dist/
 !.env.example
 *.pem
 *.key
+
+# Local-only list of forbidden strings for the sensitive-data tests
+/.sensitive-terms

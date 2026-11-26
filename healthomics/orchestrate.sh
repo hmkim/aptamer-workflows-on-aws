@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Package, register, run, or inspect the private HealthOmics workflow.
 # This script makes no resources public and has no delete operation.
+# Runs default to RESTRICTED networking. VPC networking (--networking-mode VPC)
+# is NOT YET VALIDATED; see vpc/README.md.
 set -Eeuo pipefail
 
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
@@ -20,6 +22,7 @@ state_get() { [[ -f "$state_dir/$1" ]] && cat "$state_dir/$1" || true; }
 usage() {
   cat >&2 <<'EOF'
 Usage: orchestrate.sh package|register|run|status [run-id]
+       orchestrate.sh run [--networking-mode RESTRICTED|VPC] [--configuration-name <name>]
 
 Common environment:
   AWS_REGION=<region>
@@ -42,6 +45,9 @@ run:
   SCRATCH_STORAGE_MODE=SHARED|LOCAL        default: SHARED
   RETENTION_MODE=RETAIN|REMOVE             default: RETAIN
   LOG_LEVEL=ALL|ERROR|FATAL|OFF             default: ALL
+  NETWORKING_MODE=RESTRICTED|VPC           default: RESTRICTED (or --networking-mode)
+  CONFIGURATION_NAME=<name>                required for VPC (or --configuration-name);
+                                           VPC mode is not yet validated
 EOF
 }
 
@@ -105,6 +111,28 @@ register_workflow() {
 }
 
 start_run() {
+  local networking_mode=${NETWORKING_MODE:-RESTRICTED}
+  local configuration_name=${CONFIGURATION_NAME:-}
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --networking-mode) networking_mode=${2:-}; shift 2 || die '--networking-mode needs a value' ;;
+      --configuration-name) configuration_name=${2:-}; shift 2 || die '--configuration-name needs a value' ;;
+      *) die "unknown run option: $1" ;;
+    esac
+  done
+  local network_args=(--networking-mode "$networking_mode")
+  case "$networking_mode" in
+    RESTRICTED)
+      [[ -z "$configuration_name" ]] || die '--configuration-name applies only to --networking-mode VPC'
+      ;;
+    VPC)
+      [[ "$configuration_name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]] \
+        || die 'VPC networking needs --configuration-name (or CONFIGURATION_NAME)'
+      network_args+=(--configuration-name "$configuration_name")
+      log 'VPC networking mode is not yet validated in this repository'
+      ;;
+    *) die 'networking mode must be RESTRICTED or VPC' ;;
+  esac
   require_env AWS_REGION
   require_env BUCKET_NAME
   require_env SAMPLESHEET_URI
@@ -152,7 +180,7 @@ start_run() {
     --output-uri "$output_uri" \
     --parameters "file://${params_file}" \
     --engine-settings '{"profile":"healthomics"}' \
-    --networking-mode RESTRICTED \
+    "${network_args[@]}" \
     --scratch-storage-mode "${SCRATCH_STORAGE_MODE:-SHARED}" \
     --retention-mode "${RETENTION_MODE:-RETAIN}" \
     --log-level "${LOG_LEVEL:-ALL}" \
@@ -184,7 +212,7 @@ shift
 case "$command_name" in
   package) package_workflow "${1:-}" ;;
   register) register_workflow ;;
-  run) start_run ;;
+  run) start_run "$@" ;;
   status) show_status "${1:-}" ;;
   *) usage; exit 2 ;;
 esac

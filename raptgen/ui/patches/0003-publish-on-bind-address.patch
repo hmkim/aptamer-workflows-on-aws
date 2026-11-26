@@ -1,0 +1,13 @@
+diff --git a/compose.yml b/compose.yml
+index 8274320..e2e1892 100644
+--- a/compose.yml
++++ b/compose.yml
+@@ -18,7 +18,7 @@ services:
+     container_name: frontend
+     tty: true
+     ports:
+-      - 18042:18042
++      - "${UI_BIND_ADDR:-127.0.0.1}:18042:18042"
+     volumes:
+       - ./frontend:/app
+       - /etc/localtime:/etc/localtime

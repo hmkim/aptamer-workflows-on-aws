@@ -1,0 +1,15 @@
+# boto3 for S3 I/O in raptgen-job (both images). Hash-pinned, py3-none-any wheels only.
+# Installed with: pip install --no-index --no-deps --require-hashes -r requirements-s3.lock
+# after: pip download --no-deps --only-binary=:all: --require-hashes -r requirements-s3.lock
+# python-dateutil comes from requirements.lock (pandas dependency).
+# Resolved 2026-11-26 from PyPI JSON metadata.
+boto3==1.44.12 \
+    --hash=sha256:9f1cf241303edb523af912ebdc001e0563301d9ba8eef076d25fe9a8bfb6efaf
+botocore==1.44.12 \
+    --hash=sha256:d5df4cf868f2c4050999a0e6bc94e0a039017e719f4e27b2a8e87053856787b9
+s3transfer==0.19.3 \
+    --hash=sha256:24eb7535804306355e31c952a90022bf5b2f9d760f9a11062c7493a217c08553
+jmespath==1.1.0 \
+    --hash=sha256:a5663118de4908c91729bea0acadca56526eb2698e83de10cd116ae0f4e97c64
+urllib3==2.8.0 \
+    --hash=sha256:0cf3cae568d36aa9576b28dfb35f11328f1cb974ca7647d9475ebb86c75ac6e3

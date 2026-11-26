@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # Shared helpers for operator-side upload, submission, and collection scripts.
+# Variables set here are read by the scripts that source this file.
+# shellcheck disable=SC2034
 set -Eeuo pipefail
 
 : "${AWS_REGION:?Set AWS_REGION to the deployment Region.}"
