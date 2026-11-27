@@ -1,3 +1,5 @@
+[English](SECURITY.md) | [한국어](SECURITY.ko.md)
+
 # Security policy
 
 ## Reporting a vulnerability

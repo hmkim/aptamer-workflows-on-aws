@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # Shared helpers for scripts running inside an AWS Batch job container.
+# Variables set here are read by the scripts that source this file.
+# shellcheck disable=SC2034
 set -Eeuo pipefail
 
 : "${DATA_BUCKET:?Set DATA_BUCKET.}"

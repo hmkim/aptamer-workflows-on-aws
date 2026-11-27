@@ -1,0 +1,7 @@
+{"event": "env", "torch": "2.14.1+cu126", "torch_cuda_build": "12.6", "cuda_available": true, "gpu": "NVIDIA A10G", "cpu_threads": 2, "cpu_count": 4, "cpu_model": "AMD EPYC 7R32", "python": "3.12.16"}
+{"event": "input", "sha256": "5008fb291f4394b4c7a7cf3dbf92837102967b517e1f7f8764fc14a740f06e94", "file": "data/real/A_4R.fastq"}
+{"event": "run", "device": "cuda", "min_count": 2, "unique_sequences": 3043, "epochs_requested": 5, "epochs_logged": 5, "wall_seconds": 70.6, "seconds_per_epoch": 14.13, "last_test_loss": 44.529524117708206}
+{"event": "run", "device": "cpu", "min_count": 2, "unique_sequences": 3043, "epochs_requested": 5, "epochs_logged": 5, "wall_seconds": 162.9, "seconds_per_epoch": 32.59, "last_test_loss": 44.63771963864565}
+{"event": "run", "device": "cuda", "min_count": 1, "unique_sequences": 38513, "epochs_requested": 5, "epochs_logged": 5, "wall_seconds": 721.5, "seconds_per_epoch": 144.29, "last_test_loss": 40.72338084355074}
+{"event": "run", "device": "cpu", "min_count": 1, "unique_sequences": 38513, "epochs_requested": 5, "epochs_logged": 5, "wall_seconds": 1376.7, "seconds_per_epoch": 275.35, "last_test_loss": 40.82139596575146}
+{"event": "done", "instance_type": "g5.xlarge", "service": "AWS Batch", "job_definition": "raptgen-bench-gpu", "status": "SUCCEEDED", "job_wall_seconds": 2340}

@@ -1,0 +1,190 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Private, SSM-managed EC2 host for RaptGen-UI. No public IP, no inbound
+  security-group rules, no SSH key pair, IMDSv2 required, encrypted gp3 root
+  volume. Access is AWS Systems Manager Session Manager only (port forward to
+  the UI). Deploy into a private subnet of the shared VPC (see
+  docs/getting-started/10-network.md). The subnet needs a route to the SSM
+  endpoints and to the internet over HTTPS (NAT gateway, or VPC endpoints plus
+  a route for GitHub and container registries). Needs CAPABILITY_IAM.
+
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+  PrivateSubnetId:
+    Type: AWS::EC2::Subnet::Id
+    Description: Private subnet from the network stack (output PrivateSubnetIds, pick one).
+  InstanceType:
+    Type: String
+    Default: m7i.2xlarge
+    AllowedPattern: "^[a-z][a-z0-9-]*\\.[a-z0-9]+$"
+    Description: RaptGen-UI builds ~11 GB of images and trains on CPU. 8 vCPU / 32 GiB is the tested size.
+  LatestAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+    Description: Public SSM parameter for the latest Amazon Linux 2023 AMI (x86_64).
+  RootVolumeSizeGiB:
+    Type: Number
+    Default: 200
+    MinValue: 60
+    MaxValue: 2000
+  EbsKmsKeyArn:
+    Type: String
+    Default: ""
+    AllowedPattern: "^$|^arn:aws[a-z-]*:kms:[a-z0-9-]+:[0-9]{12}:key/[A-Za-z0-9-]+$"
+    Description: Optional customer managed key for the root volume. Empty = account default EBS key.
+  HttpsEgressCidr:
+    Type: String
+    Default: 0.0.0.0/0
+    AllowedPattern: "^$|^([0-9]{1,3}\\.){3}[0-9]{1,3}/([0-9]|[12][0-9]|3[0-2])$"
+    Description: >-
+      Egress destination for TCP 443 only (SSM, GitHub, container registries,
+      package mirrors). Empty = no CIDR rule (then set S3PrefixListId).
+  S3PrefixListId:
+    Type: String
+    Default: ""
+    AllowedPattern: "^$|^pl-[0-9a-f]{8,17}$"
+    Description: Optional S3 gateway-endpoint prefix list for TCP 443 egress to S3.
+  TerminationProtection:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+  NamePrefix:
+    Type: String
+    Default: aptamer-workflows
+    AllowedPattern: "^[a-zA-Z][a-zA-Z0-9-]{0,40}$"
+    Description: Used in resource names and the Project tag.
+
+Conditions:
+  HasEbsKms: !Not [!Equals [!Ref EbsKmsKeyArn, ""]]
+  HasEgressCidr: !Not [!Equals [!Ref HttpsEgressCidr, ""]]
+  HasS3PrefixList: !Not [!Equals [!Ref S3PrefixListId, ""]]
+
+Rules:
+  SomeEgressRequired:
+    Assertions:
+      - Assert: !Or
+          - !Not [!Equals [!Ref HttpsEgressCidr, ""]]
+          - !Not [!Equals [!Ref S3PrefixListId, ""]]
+        AssertDescription: >-
+          Set HttpsEgressCidr and/or S3PrefixListId. An empty egress list would
+          leave the default allow-all egress rule in place.
+
+Resources:
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ec2.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore"
+      Tags:
+        - { Key: Project, Value: !Ref NamePrefix }
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles: [!Ref InstanceRole]
+
+  UiSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: RaptGen-UI host - no inbound, HTTPS egress only
+      VpcId: !Ref VpcId
+      # No SecurityGroupIngress: nothing can connect in. Port 80 is not needed:
+      # AL2023 repositories, GitHub and the container registries use 443.
+      # Specifying egress removes the default allow-all egress rule.
+      SecurityGroupEgress:
+        - !If
+          - HasEgressCidr
+          - Description: HTTPS egress (SSM, GitHub, container registries, package repositories)
+            IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            CidrIp: !Ref HttpsEgressCidr
+          - !Ref "AWS::NoValue"
+        - !If
+          - HasS3PrefixList
+          - Description: HTTPS egress to S3 through the gateway endpoint
+            IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            DestinationPrefixListId: !Ref S3PrefixListId
+          - !Ref "AWS::NoValue"
+      Tags:
+        - { Key: Name, Value: !Sub "${NamePrefix}-raptgen-ui" }
+        - { Key: Project, Value: !Ref NamePrefix }
+
+  UiLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        ImageId: !Ref LatestAmiId
+        InstanceType: !Ref InstanceType
+        IamInstanceProfile:
+          Name: !Ref InstanceProfile
+        DisableApiTermination: !Ref TerminationProtection
+        MetadataOptions:
+          HttpTokens: required
+          HttpEndpoint: enabled
+          # Hop limit 1: containers on this host cannot reach the instance role.
+          HttpPutResponseHopLimit: 1
+          InstanceMetadataTags: disabled
+        BlockDeviceMappings:
+          - DeviceName: /dev/xvda
+            Ebs:
+              VolumeType: gp3
+              VolumeSize: !Ref RootVolumeSizeGiB
+              Encrypted: true
+              KmsKeyId: !If [HasEbsKms, !Ref EbsKmsKeyArn, !Ref "AWS::NoValue"]
+              DeleteOnTermination: true
+        NetworkInterfaces:
+          - DeviceIndex: 0
+            SubnetId: !Ref PrivateSubnetId
+            AssociatePublicIpAddress: false
+            Groups:
+              - !Ref UiSecurityGroup
+        Monitoring:
+          Enabled: true
+        TagSpecifications:
+          - ResourceType: volume
+            Tags:
+              - { Key: Project, Value: !Ref NamePrefix }
+        UserData:
+          Fn::Base64: |
+            #!/bin/bash
+            # Minimal bootstrap: no credentials, no listeners.
+            set -euo pipefail
+            dnf -y install docker git jq
+            systemctl enable --now docker
+            systemctl enable --now amazon-ssm-agent
+
+  UiInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      LaunchTemplate:
+        LaunchTemplateId: !Ref UiLaunchTemplate
+        Version: !GetAtt UiLaunchTemplate.LatestVersionNumber
+      Tags:
+        - { Key: Name, Value: !Sub "${NamePrefix}-raptgen-ui" }
+        - { Key: Project, Value: !Ref NamePrefix }
+
+Outputs:
+  InstanceId:
+    Value: !Ref UiInstance
+    Description: Use with raptgen/ui/install.sh and raptgen/ui/connect.sh.
+  InstanceArn:
+    Value: !Sub "arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/${UiInstance}"
+    Description: Needed by raptgen/ui-web (CloudFront VPC origin).
+  PrivateIp:
+    Value: !GetAtt UiInstance.PrivateIp
+    Description: Set UI_BIND_ADDR to this for the web option.
+  PrivateDnsName:
+    Value: !GetAtt UiInstance.PrivateDnsName
+  SecurityGroupId:
+    Value: !Ref UiSecurityGroup
+    Description: Needed by raptgen/ui-web/origin-access.yaml.

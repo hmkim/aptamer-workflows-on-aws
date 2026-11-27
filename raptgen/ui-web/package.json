@@ -1,0 +1,30 @@
+{
+  "name": "raptgen-ui-web-infra",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build:edge": "tsx scripts/build-edge.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test edge/authz.test.ts",
+    "e2e": "tsx scripts/e2e-roles.ts",
+    "synth": "npm run build:edge && cdk synth",
+    "deploy": "npm run build:edge && cdk deploy"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "^2.278.0",
+    "cognito-at-edge": "^1.5.5",
+    "constructs": "^10.8.1",
+    "aws-jwt-verify": "^5.1.1"
+  },
+  "devDependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.1178.0",
+    "@types/aws-lambda": "^8.10.164",
+    "@types/node": "^26.6.10",
+    "aws-cdk": "^2.1149.0",
+    "esbuild": "^0.28.2",
+    "playwright": "^1.50.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}

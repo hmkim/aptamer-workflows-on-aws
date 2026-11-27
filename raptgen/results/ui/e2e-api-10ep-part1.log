@@ -1,0 +1,9 @@
+[    0.0s] devices: ['CPU']
+[    0.1s] viewer.models: ['RAPT1', 'RAPT3']
+[    0.1s] viewer.session: {'uuid': '<uuid>'}
+[    0.2s] viewer.encode: {'coords_x': [-0.3518179655075073], 'coords_y': [0.04642826318740845]}
+[    0.2s] viewer.decode: {'sequences': ['AATGAGTTAGAAGTTATCAAAATTGATATA', 'AACNAGAGATTCTGAGAGTTCTCCTGCTCCC']}
+[    0.2s] upload.reads: 80864
+[    2.8s] upload.estimate: {'target_length': 89, 'adapters': {'status': 'success', 'data': {'forward_adapter': 'TAATACGACTCACTATAGGGAGCAGGAGAGAGGTCAGATG', 'reverse_adapter': 'CCTATGCGTGCTAGTGTGA'}}}
+[    2.9s] upload.filter: {'random_region_length': 30, 'unique': 3043, 'kept_reads': 16066}
+[    3.3s] vae.submit: <uuid>

@@ -1,0 +1,16 @@
+[    0.0s] devices: ['CPU']
+[    0.0s] viewer.models: ['RAPT1', 'RAPT3']
+[    0.1s] viewer.session: {'uuid': '<uuid>'}
+[    0.1s] viewer.encode: {'coords_x': [-0.3518179655075073], 'coords_y': [0.04642826318740845]}
+[    0.1s] viewer.decode: {'sequences': ['AATGAGTTAGAAGTTATCAAAATTGATATA', 'AACNAGAGATTCTGAGAGTTCTCCTGCTCCC']}
+[    0.2s] upload.reads: 80864
+[    1.6s] upload.estimate: {'target_length': 89, 'adapters': {'status': 'success', 'data': {'forward_adapter': 'TAATACGACTCACTATAGGGAGCAGGAGAGAGGTCAGATG', 'reverse_adapter': 'CCTATGCGTGCTAGTGTGA'}}}
+[    1.6s] upload.filter: {'random_region_length': 30, 'unique': 3043, 'kept_reads': 16066}
+[    1.6s] vae.submit: <uuid>
+[    1.7s] vae.done: {'status': 'success', 'wall_s': 0, 'summary': {'indices': [0], 'statuses': ['success'], 'epochs_finished': [10], 'minimum_NLLs': [26735.514713287354]}}
+[    2.1s] vae.publish: <uuid>
+[    2.2s] gmm.submit: {'uuid': '<uuid>'}
+[   12.3s] gmm.done: {'status': 'success', 'wall_s': 10, 'optimal_n': 2}
+[   12.5s] gmm.centers.decoded: ['A_AG_A_GNGATTGAGAGT_TCTTG_TNT_AG', 'A_AGAGAGAATAGAGAGT_TCTTG_TNTAAA']
+[   13.1s] bo.query: {'coords': [(-0.5586304664611816, -0.5112935304641724), (-0.6290515065193176, 0.14761517941951752), (0.3301302492618561, -1.4359309673309326)], 'sequences': ['A_AGAGAGAATAGGGAGT_TCTTG_TNTCAG', 'A_AGAGAGAGTTGAGAGT_TCTTT_TNTAAG', 'A_AGAGAGAGTAGGGAGGTTCTTGTT_CAA'], 'acq_points': 4900}
+[   13.1s] ALL: PASS

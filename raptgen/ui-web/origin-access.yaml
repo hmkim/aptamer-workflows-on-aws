@@ -1,0 +1,26 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  RaptGen-UI: allow ONLY the CloudFront VPC-origin service security group to
+  reach the RaptGen-UI EC2 host on the RaptGen-UI port. Deploy only after
+  scripts/verify-gate.sh passes. Delete this stack to close the path again.
+  CloudFront-VPCOrigins-Service-SG is shared by every CloudFront VPC origin in
+  the VPC: use a VPC dedicated to this UI (see README.md).
+Parameters:
+  UiSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+  CloudFrontVpcOriginSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: CloudFront-VPCOrigins-Service-SG in the VPC of the UI host (created by CloudFront)
+  Port:
+    Type: Number
+    Default: 18042
+Resources:
+  FromCloudFrontVpcOrigin:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref UiSecurityGroupId
+      IpProtocol: tcp
+      FromPort: !Ref Port
+      ToPort: !Ref Port
+      SourceSecurityGroupId: !Ref CloudFrontVpcOriginSecurityGroupId
+      Description: RaptGen-UI via CloudFront VPC origin only (Cognito-gated)

@@ -1,0 +1,24 @@
+diff --git a/raptgen/data.py b/raptgen/data.py
+--- a/raptgen/data.py
++++ b/raptgen/data.py
+@@ -499,0 +500,11 @@
++def _choice_probabilities(p):
++    """Normalize sampling weights for current NumPy's strict sum check."""
++    p = np.asarray(p, dtype=np.float64)
++    total = np.sum(p, dtype=np.float64)
++    if not np.isfinite(total) or total <= 0:
++        raise ValueError("profile HMM sampling weights must have a positive finite sum")
++    p = p / total
++    p[-1] = 1.0 - np.sum(p[:-1], dtype=np.float64)
++    return p
++
++
+@@ -532 +543 @@
+-            state = np.random.choice([State.M, State.I, State.D], p=p/sum(p))
++            state = np.random.choice([State.M, State.I, State.D], p=_choice_probabilities(p))
+@@ -577 +588 @@
+-            state = np.random.choice([State.M, State.I, State.D], p=p/sum(p))
++            state = np.random.choice([State.M, State.I, State.D], p=_choice_probabilities(p))
+@@ -589 +600 @@
+-                seq += np.random.choice(list("ATGC"), p=p/sum(p))
++                seq += np.random.choice(list("ATGC"), p=_choice_probabilities(p))

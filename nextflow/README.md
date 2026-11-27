@@ -1,3 +1,5 @@
+[English](README.md) | [한국어](README.ko.md)
+
 # Nextflow workflow
 
 `main.nf` is one Nextflow DSL2 workflow with four profiles. DSL2 is Nextflow's current workflow syntax. The process graph performs read quality control, primer trimming, sequence counting, enrichment ranking, RNA secondary-structure folding, and output checksums.

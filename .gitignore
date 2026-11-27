@@ -1,6 +1,7 @@
 # Local inputs and outputs
 inputs/
-results/
+outputs/
+/results/
 work/
 .scratch/
 
@@ -16,6 +17,8 @@ build/
 dist/
 *.zip
 *.log
+# Sanitized RaptGen-UI test logs are published results
+!raptgen/results/ui/*.log
 *.tmp
 
 # Python
@@ -34,3 +37,6 @@ dist/
 !.env.example
 *.pem
 *.key
+
+# Local-only list of forbidden strings for the sensitive-data tests
+/.sensitive-terms

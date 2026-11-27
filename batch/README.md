@@ -1,3 +1,5 @@
+[English](README.md) | [한국어](README.ko.md)
+
 # AWS Batch implementation
 
 This directory runs the aptamer workflow on AWS Batch with three execution patterns and a separate input loader. Nothing deploys or submits automatically.
@@ -25,6 +27,27 @@ POSIX means the standard file behavior expected by Linux tools, including modify
 * least-privilege compute, pipeline-job, loader-job, and image-build roles;
 * an EC2 launch template with encrypted storage, required IMDSv2, and metadata hop limit 1;
 * a managed EC2 Batch compute environment, queue, log group, and three job definitions.
+
+### Compute and RaptGen parameters
+
+| Parameter | Default | Meaning |
+|---|---|---|
+| `EnableCpu` | `true` | CPU compute environment and `<stack>-queue`, CodeBuild image project, and the three pipeline job definitions |
+| `EnableGpu` | `false` | GPU compute environment (`ECS_AL2023_NVIDIA` AMI) and `<stack>-gpu-queue` |
+| `MaxvCpus` / `InstanceTypes` | `72` / `c7i,c6i` | CPU compute environment only |
+| `GpuMaxvCpus` / `GpuInstanceTypes` | `8` / `g5.xlarge,g6.xlarge` | GPU compute environment only; needs G-family On-Demand vCPU quota |
+| `ImageTag`, `MountpointVersion`, `MountpointPackageSha256` | empty | Required when `EnableCpu=true`; ignored for GPU only |
+
+A `Rules` block rejects `EnableCpu=false` with `EnableGpu=false`. Both compute environments use the same private subnets, security group, instance role, IMDSv2 settings, and encrypted root volume. Only CPU hosts mount the read-only S3 input.
+
+| Output | Present when |
+|---|---|
+| `JobQueueName` | always: CPU queue if CPU is enabled, otherwise GPU queue |
+| `CpuJobQueueName`, `PipelineJobDefinitionArn`, `MountpointJobDefinitionArn`, `DataLoaderJobDefinitionArn`, `ImageBuildProjectName` | `EnableCpu=true` |
+| `GpuJobQueueName` | `EnableGpu=true` |
+| `RaptgenCpuRepositoryUri`, `RaptgenGpuRepositoryUri`, `RepositoryUri`, `PipelineJobRoleArn`, `DataBucketName`, `WorkBucketName`, `LogGroupName`, `KmsKeyArn`, `ComputeSecurityGroupId`, `CpuEnabled`, `GpuEnabled` | always |
+
+The ECR repositories, buckets, KMS key, and log group are retained when the stack is deleted. `network.yaml` outputs `VpcId`, `PrivateSubnetIds`, `PrivateRouteTableIds`, `VpcCidr`, and `PrivateSubnetAvailabilityZones`; optional `AvailabilityZone1`/`AvailabilityZone2` parameters pin the two private subnets to Availability Zones where HealthOmics operates.
 
 The stack derives account, partition, Region, bucket, ECR, and resource names at deployment time. `ProjectTag`, `JobNamePrefix`, `DataPrefix`, and capacity settings are parameters. Operators provide stack names and Regions through environment variables rather than editing files.
 
@@ -85,7 +108,7 @@ done
 
 ## Upload and run
 
-All operator scripts require `AWS_REGION` and `STACK_NAME`. Pipeline and compatibility submissions also require `FRONT_PRIMER` and `BACK_PRIMER`; `TOP_CANDIDATES` defaults to `100`. The manifest must be a tab-separated file with the header and columns `round`, `accession`, `label`, `file_name`, `url`, and `md5`. The loader validates the source filename but writes each object as `R<round>_<accession>.fastq.gz`, which is the pipeline input convention. Round numbers must be contiguous from zero for the stage-array pattern.
+All operator scripts require `AWS_REGION` and `STACK_NAME`. Pipeline and compatibility submissions also require `FRONT_PRIMER` and `BACK_PRIMER`; `TOP_CANDIDATES` defaults to `100`. The manifest must be a tab-separated file with the header and columns `round`, `run_accession`, `library_name`, `file_name`, `url`, and `md5` (see `data/dra009383_manifest.tsv`). The loader validates the source filename but writes each object as `R<round>_<run_accession>.fastq.gz`, which is the pipeline input convention. Round numbers must be contiguous from zero for the stage-array pattern.
 
 For the bundled public D1 manifest, the immutable container already includes the file, so submit the loader directly:
 

@@ -1,0 +1,11 @@
+# sha256 of the upstream files AFTER patches/0001-numpy-int-and-bo-exclusion.patch
+# (commit c4986ca9fa439b9389916c05829da4ff9c30d6f3). Only raptgen/data.py differs
+# from upstream (upstream sha256 cb6e426a50d5b84f1019b079a4823bd06669109e625421fd111db10d9faad947).
+d9c2266b02ca4b6f653bddf2fc4788badd620eb0ebc37e0f286e804f513548ae  setup.py
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  raptgen/__init__.py
+2dfeed54e8d2e9920609cdc44f012eae7c82b0b1232803c0c747d53450f86722  raptgen/data.py
+6669667bee61b6b5783e6136827d56a4ac8eee0db4037f5c857cccadb10eb32c  raptgen/models.py
+fe8ac258b619599a748e835ca5347261bd33742598a106540752c9d295a81543  raptgen/visualization.py
+074e2a1fcbd6f9f2dd2c06a73ce9e81d08d8457f6b2d2632724d3275f12fbbf4  scripts/encode.py
+ea404853f125b6d289d12835a9afdbf5d4d43509eacaa874f821302ac401df85  scripts/decode.py
+392ed43b0a611799732927d5524164d9369537e3e15d0cb8cf8fa841420305cd  scripts/real.py

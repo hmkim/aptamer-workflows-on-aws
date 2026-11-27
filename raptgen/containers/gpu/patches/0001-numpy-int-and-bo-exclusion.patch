@@ -1,0 +1,28 @@
+diff --git a/raptgen/data.py b/raptgen/data.py
+index 6a10ba7..ede37c6 100644
+--- a/raptgen/data.py
++++ b/raptgen/data.py
+@@ -407,7 +407,9 @@ def local_alignment(s1, s2, print_result=False, global_alignment=False):
+     MISMATCH_COST = -1
+ 
+     # [[(0,0) for i in range(len(s2)+1)] for j in range(len(s1)+1)]
+-    dp = np.zeros((len(s1) + 1, len(s2) + 1, 2), dtype=np.int)
++    # aptamer-raptgen modern patch: NumPy 1.24 removed the deprecated numpy
++    # alias of builtin int; builtin int keeps the same dtype (int64 on Linux).
++    dp = np.zeros((len(s1) + 1, len(s2) + 1, 2), dtype=int)
+ 
+     def s(c1, c2):
+         return MATCH_COST if c1 == c2 else MISMATCH_COST
+@@ -884,7 +886,11 @@ class Result():
+     def get_bo_result(self, n=10, domain=(-2, 2), force_rerun=False):
+         if hasattr(self, "next_locations") and not force_rerun:
+             return self.next_locations
+-        import GPyOpt
++        # aptamer-raptgen modern patch: GPyOpt (unmaintained since 2020) is not
++        # installed in this image; Bayesian optimization is not supported here.
++        raise RuntimeError(
++            "Bayesian optimization (GPyOpt) is not included in this image; "
++            "use RaptGen-UI or the upstream environment for scripts/bo.py")
+         bo_path = self.path_to_save_results/"bo.pkl"
+         if bo_path.exists() and not force_rerun:
+             logger.info(f"loading {bo_path}")

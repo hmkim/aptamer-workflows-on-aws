@@ -1,0 +1,22 @@
+diff --git a/backend/cpu.dockerfile b/backend/cpu.dockerfile
+index e10ed49..d903fc6 100644
+--- a/backend/cpu.dockerfile
++++ b/backend/cpu.dockerfile
+@@ -1,4 +1,6 @@
+ FROM --platform=amd64 condaforge/mambaforge
++COPY host-ca.pem /etc/ssl/certs/ca-certificates.crt
++RUN sed -i "s|http://|https://|g" /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null || true
+ 
+ RUN apt-get update \
+     && apt-get upgrade -y \
+diff --git a/frontend/dockerfile b/frontend/dockerfile
+index b782888..1403bef 100644
+--- a/frontend/dockerfile
++++ b/frontend/dockerfile
+@@ -1,4 +1,6 @@
+ FROM node:20-bookworm-slim
++COPY host-ca.pem /etc/ssl/certs/ca-certificates.crt
++RUN sed -i "s|http://|https://|g" /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null || true
+ 
+ RUN useradd -m devcontainer
+ 

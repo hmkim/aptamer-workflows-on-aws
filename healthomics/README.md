@@ -1,3 +1,5 @@
+[English](README.md) | [한국어](README.ko.md)
+
 # AWS HealthOmics orchestration
 
 This directory packages and launches the same workflow in `../nextflow/` as an AWS HealthOmics private workflow. HealthOmics is an AWS managed service for running bioinformatics workflows.
@@ -9,7 +11,7 @@ Nothing runs automatically. `orchestrate.sh` provides `package`, `register`, `ru
 - `infrastructure.yaml` creates an S3 bucket with all four Block Public Access settings, enforced bucket ownership, versioning, TLS-only access, and KMS encryption.
 - The container repository is private ECR with immutable tags and image scanning.
 - The run role can read only the configured input prefix, write only the configured output prefix, use one encryption key, and pull from one repository.
-- The run command always passes `--workflow-type PRIVATE` and `--networking-mode RESTRICTED`.
+- The run command always passes `--workflow-type PRIVATE` and defaults to `--networking-mode RESTRICTED`. `--networking-mode VPC --configuration-name <name>` is optional and **not yet validated**; see [`vpc/README.md`](vpc/README.md).
 - Restricted networking prevents workflow tasks from reaching the public internet. Put every tool and dependency in the container image before launch.
 - Runtime workflow and run identifiers are written only to the ignored `healthomics/.state/` directory with owner-only permissions.
 
@@ -108,6 +110,17 @@ LOG_LEVEL='ALL' \
 ```
 
 The script verifies that the ECR image URI names the selected Region. Replace primer placeholders with DNA sequences containing only A, C, G, T, or N.
+
+### Run options
+
+| Option or variable | Default | Meaning |
+|---|---|---|
+| `--networking-mode` / `NETWORKING_MODE` | `RESTRICTED` | `RESTRICTED` or `VPC` (VPC is not yet validated) |
+| `--configuration-name` / `CONFIGURATION_NAME` | none | HealthOmics configuration name; required for `VPC` |
+
+## Stack outputs
+
+`BucketName`, `RepositoryUri`, `PipelineImage`, `RunRoleArn`, `InputPrefix`, `OutputPrefix`, `KmsKeyArn`.
 
 ## Inspect a run
 

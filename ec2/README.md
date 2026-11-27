@@ -1,3 +1,5 @@
+[English](README.md) | [한국어](README.ko.md)
+
 # EC2 baseline helper
 
 `run_baseline.sh` runs the shared Nextflow `local` profile on an existing EC2 instance. It uses local POSIX storage for Nextflow work and Docker task directories, then uploads final outputs to private S3. It does not create an instance, change security groups, start a listener, or publish a container port.

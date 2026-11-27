@@ -1,0 +1,31 @@
+aptamer-raptgen image notice
+
+RaptGen
+  Source:  https://github.com/hmdlab/raptgen
+  Commit:  c4986ca9fa439b9389916c05829da4ff9c30d6f3
+  License: MIT (Copyright (c) 2021 Natsuki IWANO), see LICENSE in this directory.
+  Paper:   Iwano et al., Nature Computational Science 2022,
+           https://www.nature.com/articles/s43588-022-00249-6
+
+Modifications (Dockerfile):
+  /usr/share/doc/aptamer-raptgen/patches/ contains two audited patch files
+  with these three changes:
+  - raptgen/data.py: np.int -> int (NumPy >= 1.24 removed the alias).
+  - raptgen/data.py: pHMM sampling weights normalize in float64 and correct
+    the final value to an exact unit sum for NumPy 2.5.
+  - raptgen/data.py: Result.get_bo_result raises; GPyOpt/GPy are not
+    installed and scripts/bo.py is not shipped (Bayesian optimization excluded).
+  Only scripts/encode.py, scripts/decode.py and scripts/real.py are shipped.
+
+Bundled upstream example files (from the same commit, MIT):
+  /opt/raptgen/data/sample/sample.fasta      (100 synthetic reads, AAAAA-20N-GGGGG)
+  /opt/raptgen/data/sample/cnn_phmm_vae.mdl  (upstream sample model, ~0.9 MB)
+  /opt/raptgen/data/sample/cnn_phmm_vae.csv  (its training-loss log)
+No other model weights and no user data are included.
+
+Bundled upstream data (same commit): data/real/A_4R.fastq, RaptGen paper dataset A.
+
+Third-party Python packages:
+  torch (2.14.1+cu126 and its NVIDIA CUDA runtime wheels, which are under the NVIDIA CUDA EULA),
+  plus the hash-locked sets in /usr/share/doc/aptamer-raptgen/requirements.lock
+  and requirements-s3.lock (boto3); each keeps its own license.
